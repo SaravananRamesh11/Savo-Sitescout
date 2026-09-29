@@ -389,8 +389,9 @@ The frontend is static, so it goes on **Vercel**. The backend must run on an alw
 property evaluations keep working after the HTTP reply. Vercel's serverless functions would cut them off, so the backend
 goes on **Render**. The database (PostGIS) and photo storage (Cloudflare R2) are hosted services already.
 
-**Live URLs:** _add them here after deploying._ Frontend: `https://<project>.vercel.app` · Backend health check:
-`https://<service>.onrender.com/api/health`
+**Live URLs:** Frontend: https://savo-sitescout.vercel.app · Backend health check:
+https://savo-sitescout-api-ix6x.onrender.com/api/health (the free Render instance sleeps when idle, so open the site once
+and wait a minute before a demo).
 
 ## 1. Backend on Render
 1. Push the repo to GitHub. On render.com choose **New → Blueprint** and pick the repo (it reads `render.yaml`), or
