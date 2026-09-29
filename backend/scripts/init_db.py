@@ -11,4 +11,6 @@ with engine.begin() as c:
 Base.metadata.create_all(engine)
 from app.models.property_models import ensure_m2_schema
 ensure_m2_schema(engine)
+from app.models.survey_models import ensure_m3_schema
+ensure_m3_schema(engine)
 print("tables:", sorted(Base.metadata.tables))

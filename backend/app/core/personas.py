@@ -13,12 +13,15 @@ PERSONAS = [
     {"id": "bd_executive:divya", "name": "Divya (BD Executive)", "role": "bd_executive",
      "role_label": "BD Executive", "active": True, "job": "Scout properties in the field from a phone"},
     {"id": "survey_manager:meena", "name": "Meena (Survey Manager)", "role": "survey_manager",
-     "role_label": "Survey Manager", "active": False, "job": "Plan and assign catchment studies (Milestone 3)"},
+     "role_label": "Survey Manager", "active": True, "job": "Split catchments into work units, assign and review"},
     {"id": "survey_executive:karthik", "name": "Karthik (Survey Executive)", "role": "survey_executive",
-     "role_label": "Survey Executive", "active": False, "job": "Capture lane-level data (Milestone 3)"},
+     "role_label": "Survey Executive", "active": True, "job": "Capture ground observations lane by lane"},
+    {"id": "survey_executive:lakshmi", "name": "Lakshmi (Survey Executive)", "role": "survey_executive",
+     "role_label": "Survey Executive", "active": True, "job": "Capture ground observations lane by lane"},
 ]
 BY_ID = {p["id"]: p for p in PERSONAS}
 EXECUTIVES = [p for p in PERSONAS if p["role"] == "bd_executive"]
+SURVEY_EXECUTIVES = [p for p in PERSONAS if p["role"] == "survey_executive"]
 
 
 def current_persona(x_persona: str | None = Header(default=None)) -> dict:

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core import property_scoring_constants as K
 from app.models.db_models import Area, ExternalDataCache
 from app.models.property_models import Property, PropertyEvaluation
-from app.services import demographics, grid, m1_lookup, overpass_client, property_scoring, property_text
+from app.services import catchment_service, demographics, grid, m1_lookup, overpass_client, property_scoring, property_text
 from app.services.pipeline import role_of  # noqa: F401  (re-exported for callers)
 
 
@@ -184,7 +184,22 @@ def evaluate_property(db: Session, property_id: int, trigger: str, created_by: s
     risks = property_scoring.build_risks(x, result, flags, extra)
     rec, rec_text = property_scoring.recommend(result["total"], result["confidence"], risks)
 
-    metrics = {**result["metrics"], "poi": x["poi"], "demographics": x["demo"],
+    # Ground-survey findings (M3) travel WITH the evaluation for the record and the explanation, but they never
+    # change the score: the manager weighs the M2 evaluation and the M3 findings together.
+    block = catchment_service.property_block(db, p.id)
+    catchment = None
+    if block and block.get("insights"):
+        ins = block["insights"]
+        catchment = {"study_id": block.get("data_study_id"), "reused": block.get("reused"),
+                     "coverage_percentage": ins["coverage_percentage"], "ground_fit_score": ins["ground_fit_score"],
+                     "competitors_observed": ins["competition"].get("competitors"),
+                     "nearest_competitor_m": ins["competition"].get("nearest_to_property_m"),
+                     "key_findings": ins["key_findings"], "risks": [r["text"] for r in ins["risks"]],
+                     "data_quality_flags": ins["data_quality_flags"], "insight_version": ins["version"]}
+        sources.append({"source": f"Ground catchment survey (study #{block.get('data_study_id')}, insight v{ins['version']})",
+                        "mocked": False, "fetched_at": ins["generated_at"],
+                        "note": "recorded by survey executives on the ground; not used in the M2 score"})
+    metrics = {**result["metrics"], "poi": x["poi"], "demographics": x["demo"], "catchment": catchment,
                "field_competitors": [{"name": c.name, "kind": c.kind, "approx_distance_m": c.approx_distance_m}
                                      for c in p.competitors],
                "recommendation_reason": rec_text}

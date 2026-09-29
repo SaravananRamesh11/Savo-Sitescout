@@ -1,12 +1,13 @@
-# Savo SiteScout: Chennai expansion intelligence (M1 Area Intelligence + M2 Property Scouting)
+# Savo SiteScout: Chennai expansion intelligence (M1 Area Intelligence, M2 Property Scouting, M3 Ground Catchment Survey)
 
 A BD Manager picks any part of Chennai (locality name, pincode, or grid cells on a map), runs a **virtual
 analysis**, and gets a saved, timestamped **Area Fitness Report**: what the area is like, a 0-100 fit rating,
 the reasoning behind it, and the 5 places to scout first. Built mobile-first (360 px and up) in the Savomart
 brand colours (`#782B90` purple, `#FFF200` yellow).
 
-> Status: **Milestones 1 and 2 complete.** M3 (catchment surveys) is next. See Milestone 2 below.
-> The `areas` table is the anchor M2/M3 will point to.
+> Status: **Milestones 1, 2 and 3 complete.** See the Milestone 2 and Milestone 3 sections below, and `m3_tweaks.md`
+> for every deviation from the M3 spec.
+> The `areas` table is the anchor M2 and M3 point to.
 
 ## Run it locally
 
@@ -21,7 +22,7 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # Window
 python scripts/init_db.py                  # PostGIS + tables (also runs at API startup)
 python scripts/ingest_pincodes.py          # ~2.5 min, rebuilds data/chennai_pincodes.geojson (already committed)
 python -m uvicorn app.main:app --port 8000
-python scripts/seed_demo.py                # demo scouting assignments from M1 hotspots (--reset wipes M2 tables)
+python scripts/seed_demo.py                # demo scouting assignments from M1 hotspots (--reset wipes M2 + M3 tables)
 python -m pytest -q                        # unit tests; integration tests use the real DB and take minutes
 
 # frontend (new terminal)
@@ -205,22 +206,19 @@ can be off by hundreds of metres; that is why the pin is draggable and the accur
   reject each require a written reason.
 * **Drafts are private to the executive.** The manager's Properties list only shows submitted properties. A property
   the manager sent back stays visible, labelled "Sent back to executive".
-The transitions after `CATCHMENT_REQUESTED` are in the state machine (`services/pipeline.py`) for M3 to drive.
+The transitions after `CATCHMENT_REQUESTED` are driven by the survey workflow (Milestone 3).
 
 ## Final review (after the catchment study)
-`CATCHMENT_COMPLETED` -> `FINAL_REVIEW` -> `APPROVED` or `REJECTED`. The catchment stages are driven by Milestone 3 (the
-survey side / system), not by the BD manager or executive.
+`CATCHMENT_COMPLETED` -> `FINAL_REVIEW` -> `APPROVED` or `REJECTED`. The catchment stages are driven by the Milestone 3
+survey workflow, not by the BD manager or executive.
 * **Entering final review creates a new evaluation version** (trigger `catchment_completed`). The original M2 evaluation
   is never edited, so the review screen shows the original and the updated score side by side, with the change.
 * **The manager decides on a finished evaluation.** Approve and reject are blocked while the updated evaluation is still
   running. A **reason is mandatory for both**.
 * **Audit trail:** the decision is stored in `property_status_history` with who, when, the reason and the
   `evaluation_id` the manager was looking at ("Decided on evaluation v2"). Approved and rejected are terminal.
-* **No invented survey data:** until M3 exists there are no catchment insights, and the screen says so. The final-review
-  evaluation is a real re-run on the same public and field data.
-* **Testing without M3:** `python scripts/advance_property.py <property id>` moves a property from
-  `CATCHMENT_REQUESTED` to `FINAL_REVIEW` through the same state machine as the `system` actor. It is a dev helper only;
-  nothing in the app UI can skip the survey stages.
+* **No invented survey data:** if a property reaches final review without a completed survey, the screen says so. With a
+  survey, the findings are shown next to the evaluation (see Milestone 3). The M2 score is never changed by M3.
 
 ## Evaluation (deterministic; the LLM never calculates)
 Eight factors with configurable weights (`core/property_scoring_constants.py`, env-overridable): rent affordability 15,
@@ -275,3 +273,109 @@ folder. Check the connection with `python scripts/check_r2.py` (it never prints 
 * Evaluation runs as a FastAPI background task (fine for one node; a queue would be next).
 * The managed database is remote (about 0.3 s per query), so the integration tests take minutes.
 * Not built: offline capture with sync, PDF decision pack, reverse-geocode caching.
+
+
+---
+
+# Milestone 3: Ground catchment survey
+
+M1 gives virtual data, M2 evaluates the property with public and field data, **M3 checks the ground around the property
+with people**: Survey Executives walk the catchment and record what is really there. The BD Manager then decides
+(`FINAL_REVIEW`) with the M2 evaluation **and** the M3 findings side by side.
+
+```
+BD Manager: Request catchment study (one click)         property -> CATCHMENT_REQUESTED
+Survey Manager: split into work units, assign            study REQUESTED
+Survey Executives: capture on the ground                 units ASSIGNED -> IN_PROGRESS -> COMPLETED
+Survey Manager: review insights, complete and send       study COMPLETED, property -> CATCHMENT_COMPLETED
+BD Manager: FINAL_REVIEW -> APPROVED / REJECTED (reason required)
+```
+
+Roles: **Meena** (Survey Manager), **Karthik** and **Lakshmi** (Survey Executives), plus the BD roles from M2.
+Visibility is enforced by the API: the BD Manager sees only catchment-level status (requested / in progress /
+completed), never work units; a Survey Executive sees only their own units; the Survey Manager sees everything.
+
+## Demo path
+1. As **Asha**: submit-and-review a property as in M2, then **Request catchment study** (or request one for a whole
+   analysed area from an M1 report). If a recent, good survey already covers it, it is reused (see below).
+2. As **Meena**: *Studies* -> open the study -> **Preview the split** (map with coloured units, workload, lanes, suggested
+   executive per unit; add or remove units) -> **Confirm and assign**.
+3. As **Karthik** or **Lakshmi** (phone): *My units* -> open a unit -> **Start** -> **Add observation** -> pick a type
+   (homes, shops, competitor, footfall, access, demand, condition) -> fill the short form -> **Use current location**
+   (or tap the map; it must be inside the purple unit outline) -> optional photo -> save. **Mark this unit complete**.
+4. As **Meena**, when all units are complete: **Review the insights** (preview, nothing saved) -> **Complete and send to
+   BD Manager**.
+5. As **Asha**: the property review now has a **Ground catchment survey** panel next to the unchanged M2 evaluation.
+   **Start final review** -> **Approve** or **Reject** with a reason.
+
+## Data model (five new tables; M1 and M2 tables untouched)
+| table | purpose |
+|---|---|
+| `catchment_studies` | one request, for **either** an M2 `property` **or** an M1 `area` (DB CHECK: exactly one). `study_geometry` polygon, status `REQUESTED / IN_PROGRESS / COMPLETED`, `reused_from_study_id` + `reuse_reason`, quality flags |
+| `survey_work_units` | the non-overlapping pieces: MULTIPOLYGON, assignee, status `ASSIGNED / IN_PROGRESS / COMPLETED`, priority, estimated lane distance, target and completed capture counts, workload breakdown |
+| `survey_captures` | one observation: POINT (+GPS accuracy), type, `data` JSON, who and when |
+| `survey_capture_photos` | optional evidence photo on one capture: `storage_key` only (R2 or local fallback), optional location |
+| `catchment_insights` | **append-only, versioned** aggregation of the completed survey |
+
+Foreign keys: `catchment_studies -> properties` (RESTRICT), `-> areas` (RESTRICT), `-> catchment_studies` (RESTRICT,
+reuse); `survey_work_units -> catchment_studies`, `survey_captures -> survey_work_units`,
+`survey_capture_photos -> survey_captures`, `catchment_insights -> catchment_studies` (all CASCADE). GiST indexes on
+every geometry, indexes on every FK, CHECK constraints on statuses, types, priority and coverage. There is no offline
+mode, no `client_capture_id`, no sync fields and no catchment-level photos.
+
+## How work is split (fair, non-overlapping, balanced)
+`services/catchment_split.py`, deterministic, no optimiser:
+1. The catchment (a 500 m circle around a property, or the area polygon) is partitioned **exactly** into 125 m blocks.
+2. Each block gets a workload: lane length (1 point per 100 m) + 0.5 per shop/office/bank + 0.5 per school, clinic,
+   hospital or transit stop + estimated households / 50. Lane count alone is never the signal. Households come from
+   M1's estimated demographics and are labelled as estimates; OSM buildings are not fetched, so building density is not
+   claimed.
+3. Units = `round(total points / 45)`, clamped to 1-12 (the manager can add or remove units in the preview).
+4. Blocks are ordered in a serpentine sweep and cut where cumulative workload crosses `k x total / K`.
+5. A unit is the union of its blocks, so units **cannot overlap and leave no gaps** (tested). Each unit shows its
+   estimated lane distance, named lanes and target observations before anything is assigned.
+
+If OpenStreetMap is unreachable the split falls back to equal-area blocks and says so (`split_by_area_only`); mock data
+is never used to balance work. Suggested assignees even out people who already have open work.
+
+## What is captured
+Closed-list forms, validated on the server (`services/survey_schema.py`): **homes** (houses, apartments, occupancy,
+construction, activity), **shops** (kind, name, count, activity), **competitor** (name, type, size, customer activity),
+**footfall** (pedestrian and vehicle LOW/MEDIUM/HIGH, observation period; levels only, no invented counts),
+**access** (road condition, width, entry/exit, parking, obstruction, construction, closure, median, difficult turns),
+**demand generator** (school, college, hospital, apartments, offices, market, transit) and **local condition**
+(construction, vacant land, waterlogging, blocked road, restrictions, barriers). The location must be inside the
+executive's own unit (small GPS tolerance) or the server refuses it. Photos are optional on any observation.
+
+## Insights (real data only)
+`services/catchment_insights.py` aggregates the captures: counts and distributions of what was recorded, competitors
+de-duplicated (same name and type within 25 m), distance of the nearest observed competitor to the property. A rated
+category (homes, shops, footfall, access) needs at least 2 observations, otherwise it says **"Insufficient data"**.
+Competition and demand generators are only reported when enough of the catchment was surveyed, because "no competitors
+recorded" proves nothing at 5% coverage. Key findings and risks are rule-generated sentences that quote only computed
+values. `overall_ground_fit_score` is an independent 0-100 indicator over the categories that have enough data (NULL if
+fewer than three), shown as "ground indicator", and it **never changes the M2 score**. Insights are versioned: the Survey
+Manager can generate a new version and older ones stay.
+
+## Reuse of an existing study
+When a study is requested, the app looks for a **completed** study whose geometry covers at least **80%** of the new
+catchment, finished within **90 days**, with ground-data coverage of at least **70%** and no `insufficient_data` flag
+(`core/survey_constants.py`). The best match (highest coverage, then newest) is reused: a **new** `catchment_studies` row
+is created with `reused_from_study_id` and a plain-language `reuse_reason`, status `COMPLETED`; **no captures are copied**
+and the old study stays intact. The property moves through the catchment stages with the reason recorded. Because an area
+study's geometry is the whole area, a property scouted inside an area that already has a study reuses it. The BD Manager
+can tick "Run a new survey even if a recent one nearby could be reused" to survey again.
+
+## Final review
+The final-review evaluation (M2 mechanism) now carries the survey facts and the explanation can cite them (through the
+same number-grounding check), but **the M2 score and factors are unchanged**: the manager weighs both. The decision,
+reason and evaluation version are stored in the audit history as in M2.
+
+## M3 trade-offs and known issues
+* Personas are seeded, not authenticated (no User table exists); see `m3_tweaks.md` for every deviation from the spec.
+* Work units are groups of 125 m blocks, not polygons cut along individual lanes; the lanes inside each unit are listed,
+  and non-overlap is guaranteed by construction. A finer, lane-following geometry is the obvious next step.
+* Workload weights, the 45-point unit size and the reuse thresholds are assumptions to calibrate with real surveys.
+* No offline capture (out of scope by design): observations are saved when submitted.
+* The capture list supports deleting and re-adding an observation; an edit screen is not built (the API supports edits).
+* Integration tests use the real remote database and take several minutes.

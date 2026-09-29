@@ -6,6 +6,7 @@ import { api, ApiError, getPersona } from '../../api/client'
 import type { EvalFactor, PropertyDetail, Stage } from '../../types'
 import { FLAG_TEXT, fmtTime } from '../common/format'
 import { Fact, Field, inr, num, pct, REC_LABEL, StageChip, STAGE_LABEL } from '../common/ui'
+import CatchmentPanel from './CatchmentPanel'
 
 const pinIcon = L.divIcon({ className: '', html: '<div class="drop-pin"><span></span></div>', iconSize: [34, 42], iconAnchor: [17, 40] })
 const FLAG_EXTRA: Record<string, string> = {
@@ -68,6 +69,7 @@ export default function PropertyReview({ id, onBack, onEdit }: { id: number; onB
   const [act, setAct] = useState<Stage | null>(null)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
+  const [freshSurvey, setFreshSurvey] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [rev, setRev] = useState<{ v: string; src: string }>({ v: '', src: 'Manager assumption' })
   const timer = useRef<number | undefined>(undefined)
@@ -101,7 +103,13 @@ export default function PropertyReview({ id, onBack, onEdit }: { id: number; onB
   const doTransition = async (to: Stage) => {
     setBusy(true); setNote(null)
     try {
-      setP(await api.transition(id, to, reason.trim() || undefined))
+      const d = await api.transition(id, to, reason.trim() || undefined, undefined, to === 'CATCHMENT_REQUESTED' ? freshSurvey : undefined)
+      setP(d)
+      // entering final review starts a new evaluation in the background: keep polling until it finishes
+      if (d.latest_evaluation_status?.status === 'running') {
+        window.clearTimeout(timer.current)
+        timer.current = window.setTimeout(load, 2500)
+      }
       setAct(null); setReason('')
     } catch (e) { setNote((e as ApiError).message) } finally { setBusy(false) }
   }
@@ -216,11 +224,11 @@ export default function PropertyReview({ id, onBack, onEdit }: { id: number; onB
                 {p.score_change != null && (
                   <p className="hint">Score change since the original evaluation: <b>{p.score_change > 0 ? '+' : ''}{p.score_change}</b>. Both versions stay available.</p>
                 )}
-                {p.catchment == null && (
+                {!p.catchment?.insights && (
                   <div className="msg warn">
-                    <b>No ground-survey (catchment) insights are recorded for this property yet.</b> The catchment study module is
-                    not connected, so this evaluation uses the same public and field data as before. Nothing has been estimated or
-                    made up. Decide with that in mind.
+                    <b>No ground-survey findings are recorded for this property.</b>{' '}
+                    {p.catchment ? 'The survey has not been completed yet.' : 'No catchment study was requested.'} Nothing has been
+                    estimated or made up. Decide with that in mind.
                   </div>
                 )}
                 {inFinal && (
@@ -229,11 +237,17 @@ export default function PropertyReview({ id, onBack, onEdit }: { id: number; onB
               </section>
             )}
 
+            {p.catchment && <CatchmentPanel c={p.catchment} />}
+
             {(p.allowed_next_stages.length > 0 || (isManager && p.pipeline_stage !== 'ASSIGNED') || (p.can_edit && !isManager)) && (
               <section className="card stack" aria-label="Actions">
                 <h2>Decision</h2>
                 {note && <div className="msg info" role="status">{note}</div>}
                 {!isManager && p.can_edit && <button className="btn yellow block" onClick={() => onEdit(p.property_id)}>Continue editing this draft</button>}
+                {isManager && p.allowed_next_stages.includes('CATCHMENT_REQUESTED') && (
+                  <label className="check-row"><input type="checkbox" checked={freshSurvey} onChange={(e) => setFreshSurvey(e.target.checked)} />
+                    Run a new survey even if a recent one nearby could be reused</label>
+                )}
                 {isManager && p.allowed_next_stages.map((s) => (
                   <button key={s} className={`btn block${s === 'REJECTED' ? ' ghost' : s === 'CATCHMENT_REQUESTED' ? ' yellow' : ''}`} disabled={busy}
                     onClick={() => (NEEDS_REASON.includes(s) ? setAct(act === s ? null : s) : doTransition(s))}>{label(s)}</button>

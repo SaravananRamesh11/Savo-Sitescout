@@ -16,7 +16,7 @@ from app.core.personas import BY_ID, current_persona, require_roles
 from app.models.db_models import Area
 from app.models.property_models import (Property, PropertyEvaluation, PropertyFieldCompetitor, PropertyPhoto,
                                         PropertyStatusHistory, ScoutingAssignment)
-from app.services import duplicates, pipeline, property_eval, property_validation as V, storage
+from app.services import catchment_service, duplicates, pipeline, property_eval, property_validation as V, storage
 
 router = APIRouter(tags=["properties"])
 PHOTO_TYPES = ["front_view", "road_view", "side_view", "parking_view", "interior_view", "building_condition"]
@@ -77,6 +77,7 @@ class TransitionIn(BaseModel):
     to_stage: str
     reason: str | None = None
     notes: str | None = None
+    force_new: bool = False  # CATCHMENT_REQUESTED only: survey again instead of reusing an existing study
 
 
 class SubmitIn(BaseModel):
@@ -246,8 +247,8 @@ def detail_json(db: Session, p: Property, persona: dict) -> dict:
                     for h in hist],
         "allowed_next_stages": pipeline.allowed_next(p.pipeline_stage, persona["role"]),
         **_final_review_view(rows, hist),
-        # M3 fills this with the ground-survey insights; None means no catchment study data exists yet
-        "catchment": None,
+        # ground catchment survey (M3): status always, insights and evidence once completed; None = never requested
+        "catchment": catchment_service.property_block(db, p.id),
         "required_photo_types": K.REQUIRED_PHOTO_TYPES, "photo_types": PHOTO_TYPES,
         "can_edit": (persona["role"] == "bd_manager") or (p.created_by == persona["id"] and p.pipeline_stage == "ASSIGNED"),
         "storage_backend": storage.backend_name(),
@@ -520,6 +521,14 @@ def transition(pid: int, body: TransitionIn, bg: BackgroundTasks, db: Session = 
                                   evaluation_id=evaluation_id)
     except pipeline.TransitionError as exc:
         raise HTTPException(exc.status, str(exc))
+    if body.to_stage == "CATCHMENT_REQUESTED":
+        try:
+            study, outcome = catchment_service.request_study(db, persona["id"], prop=p, force_new=body.force_new)
+            if outcome == "reused":
+                catchment_service.apply_reuse_to_property(db, study)
+        except catchment_service.StudyError as exc:
+            db.rollback()
+            raise HTTPException(exc.status, str(exc))
     if body.to_stage == "FINAL_REVIEW":
         start_final_review_evaluation(db, p, persona["id"], bg)
     p.updated_at = datetime.now(timezone.utc)

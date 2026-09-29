@@ -5,6 +5,8 @@ import { AssignmentDetail, AssignmentList } from './components/Executive/Executi
 import PropertyList from './components/Manager/PropertyList'
 import PropertyWizard from './components/PropertyCapture/PropertyWizard'
 import PropertyReview from './components/PropertyReview/PropertyReview'
+import { StudyDetail, StudyList } from './components/Survey/SurveyManagerPages'
+import { UnitDetailPage, UnitList } from './components/Survey/SurveyExecutivePages'
 import ReportList from './components/ReportHistory/ReportList'
 import ReportPage from './components/ReportView/ReportPage'
 import type { Persona } from './types'
@@ -14,6 +16,7 @@ type Route =
   | { name: 'properties' } | { name: 'property'; id: number } | { name: 'edit'; id: number }
   | { name: 'new'; assignment: number | null }
   | { name: 'assignments' } | { name: 'assignment'; id: number }
+  | { name: 'studies' } | { name: 'study'; id: number } | { name: 'units' } | { name: 'unit'; id: number }
 
 function parse(hash: string): Route {
   let m = hash.match(/^#\/report\/(\d+)/)
@@ -26,6 +29,12 @@ function parse(hash: string): Route {
   if (m) return { name: 'new', assignment: m[1] ? Number(m[1]) : null }
   m = hash.match(/^#\/assignment\/(\d+)/)
   if (m) return { name: 'assignment', id: Number(m[1]) }
+  m = hash.match(/^#\/study\/(\d+)/)
+  if (m) return { name: 'study', id: Number(m[1]) }
+  m = hash.match(/^#\/unit\/(\d+)/)
+  if (m) return { name: 'unit', id: Number(m[1]) }
+  if (hash.startsWith('#/studies')) return { name: 'studies' }
+  if (hash.startsWith('#/units')) return { name: 'units' }
   if (hash.startsWith('#/assignments')) return { name: 'assignments' }
   if (hash.startsWith('#/properties')) return { name: 'properties' }
   if (hash.startsWith('#/reports')) return { name: 'reports' }
@@ -36,8 +45,9 @@ const FALLBACK: Persona[] = [
   { id: 'bd_manager:asha', name: 'Asha (BD Manager)', role: 'bd_manager', role_label: 'BD Manager', active: true, job: '' },
   { id: 'bd_executive:ravi', name: 'Ravi (BD Executive)', role: 'bd_executive', role_label: 'BD Executive', active: true, job: '' },
   { id: 'bd_executive:divya', name: 'Divya (BD Executive)', role: 'bd_executive', role_label: 'BD Executive', active: true, job: '' },
-  { id: 'survey_manager:meena', name: 'Meena (Survey Manager)', role: 'survey_manager', role_label: 'Survey Manager', active: false, job: 'Plan and assign catchment studies (Milestone 3)' },
-  { id: 'survey_executive:karthik', name: 'Karthik (Survey Executive)', role: 'survey_executive', role_label: 'Survey Executive', active: false, job: 'Capture lane-level data (Milestone 3)' },
+  { id: 'survey_manager:meena', name: 'Meena (Survey Manager)', role: 'survey_manager', role_label: 'Survey Manager', active: true, job: '' },
+  { id: 'survey_executive:karthik', name: 'Karthik (Survey Executive)', role: 'survey_executive', role_label: 'Survey Executive', active: true, job: '' },
+  { id: 'survey_executive:lakshmi', name: 'Lakshmi (Survey Executive)', role: 'survey_executive', role_label: 'Survey Executive', active: true, job: '' },
 ]
 
 const Icon = {
@@ -62,19 +72,22 @@ export default function App() {
   const persona = personas.find((p) => p.id === personaId) ?? personas[0]
   const isMgr = persona.role === 'bd_manager'
   const isExec = persona.role === 'bd_executive'
+  const isSM = persona.role === 'survey_manager'
+  const isSE = persona.role === 'survey_executive'
   const go = (h: string) => { window.location.hash = h }
   const choose = (id: string) => {
     setPersona(id)
     setPersonaId(id)
     const p = personas.find((x) => x.id === id)
-    go(p?.role === 'bd_executive' ? '#/assignments' : '#/')
+    go(p?.role === 'bd_executive' ? '#/assignments' : p?.role === 'survey_manager' ? '#/studies' : p?.role === 'survey_executive' ? '#/units' : '#/')
   }
 
   let r = parse(hash)
   // role-shaped home screen
-  if ((r as { name: string }).name === 'home') r = isExec ? { name: 'assignments' } : { name: 'analyse' }
+  if ((r as { name: string }).name === 'home') r = isExec ? { name: 'assignments' } : isSM ? { name: 'studies' } : isSE ? { name: 'units' } : { name: 'analyse' }
   const tab = r.name === 'analyse' ? 'analyse' : r.name === 'reports' || r.name === 'report' ? 'reports'
-    : r.name === 'properties' || r.name === 'property' || r.name === 'edit' || r.name === 'new' ? 'properties' : 'assignments'
+    : r.name === 'properties' || r.name === 'property' || r.name === 'edit' || r.name === 'new' ? 'properties'
+    : r.name === 'studies' || r.name === 'study' ? 'studies' : r.name === 'units' || r.name === 'unit' ? 'units' : 'assignments'
 
   let body
   if (!persona.active) {
@@ -85,6 +98,11 @@ export default function App() {
         <button className="btn yellow" style={{ marginTop: 16 }} onClick={() => choose('bd_manager:asha')}>Switch to BD Manager</button>
       </div></div></div>
     )
+  } else if (isSM) {
+    body = r.name === 'study' ? <StudyDetail key={r.id} id={r.id} onBack={() => go('#/studies')} />
+      : r.name === 'unit' ? <UnitDetailPage id={r.id} onBack={() => go('#/studies')} /> : <StudyList onOpen={(id) => go(`#/study/${id}`)} />
+  } else if (isSE) {
+    body = r.name === 'unit' ? <UnitDetailPage key={r.id} id={r.id} onBack={() => go('#/units')} /> : <UnitList onOpen={(id) => go(`#/unit/${id}`)} />
   } else if (isExec) {
     if (r.name === 'assignment') body = <AssignmentDetail id={r.id} onBack={() => go('#/assignments')} onAdd={() => go(`#/new/${r.id}`)} onOpenProperty={(id, st) => go(st === 'ASSIGNED' ? `#/property/${id}/edit` : `#/property/${id}`)} />
     else if (r.name === 'new') body = <PropertyWizard key={`new-${r.assignment}`} assignmentId={r.assignment} propertyId={null} onDone={(id) => go(`#/property/${id}`)} />
@@ -116,6 +134,8 @@ export default function App() {
               <button aria-current={tab === 'reports' ? 'page' : undefined} onClick={() => go('#/reports')}>{Icon.doc} Reports</button>
               <button aria-current={tab === 'properties' ? 'page' : undefined} onClick={() => go('#/properties')}>{Icon.building} Properties</button>
             </>}
+            {isSM && <button aria-current={tab === 'studies' ? 'page' : undefined} onClick={() => go('#/studies')}>{Icon.map} Studies</button>}
+            {isSE && <button aria-current={tab === 'units' ? 'page' : undefined} onClick={() => go('#/units')}>{Icon.pin} My units</button>}
             {isExec && <>
               <button aria-current={tab === 'assignments' ? 'page' : undefined} onClick={() => go('#/assignments')}>{Icon.pin} Assignments</button>
               <button aria-current={tab === 'properties' ? 'page' : undefined} onClick={() => go('#/properties')}>{Icon.building} My properties</button>

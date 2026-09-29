@@ -166,7 +166,60 @@ export type PropertyDetail = PropertySummary & Partial<PropertyForm> & {
   history: { from_stage: string | null; to_stage: string; changed_by_name: string; changed_at: string; reason: string | null; notes: string | null; evaluation_id?: number | null; evaluation_version?: number | null }[]
   original_evaluation?: Evaluation | null; updated_evaluation?: Evaluation | null; score_change?: number | null
   final_decision?: { decision: 'APPROVED' | 'REJECTED'; decided_by: string; decided_by_name: string; decided_at: string; reason: string | null; based_on_evaluation: Evaluation | null } | null
-  catchment?: unknown | null
+  catchment?: PropertyCatchment | null
   allowed_next_stages: Stage[]; required_photo_types: string[]; photo_types: string[]; can_edit: boolean; storage_backend: string
   duplicates?: Duplicate[]; warnings?: FieldError[]
+}
+
+// ------------------------------------------------------------------ M3: ground catchment survey
+export type StudyStatus = 'REQUESTED' | 'IN_PROGRESS' | 'COMPLETED'
+export type UnitStatus = 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED'
+export type CaptureType = 'residential' | 'commercial' | 'competition' | 'traffic' | 'accessibility' | 'demand_generator' | 'local_condition'
+
+export type Insights = {
+  insight_id?: number; version?: number; preview?: boolean; coverage_percentage: number
+  residential: Record<string, any>; commercial: Record<string, any>; competition: Record<string, any>
+  traffic: Record<string, any>; accessibility: Record<string, any>; demand_generators: Record<string, any>
+  key_findings: string[]; risks: { code: string; severity: 'high' | 'medium' | 'low'; text: string }[]
+  ground_fit_score: number | null; data_quality_flags: string[]; generated_at?: string; generated_by?: string
+}
+export type EvidencePhoto = { photo_id: number; url: string; photo_type: string; capture_type: string; lat: number | null; lon: number | null; captured_at: string }
+
+export type StudyRow = {
+  study_id: number; status: StudyStatus; label: string; sublabel: string | null; kind: 'property' | 'area'
+  requested_by: string; requested_at: string; started_at: string | null; completed_at: string | null
+  property_id: number | null; area_id: number | null; reused: boolean; reused_from_study_id: number | null
+  reuse_reason: string | null; data_quality_flags: string[]; units_total?: number; units_completed?: number; needs_split?: boolean
+}
+export type WorkUnit = {
+  unit_id: number; unit_code: string; status: UnitStatus; priority: number; assigned_to: string; assigned_to_name: string
+  estimated_distance_m: number | null; target_capture_count: number | null; completed_capture_count: number
+  workload: { points: number; lanes: { name: string; length_m: number }[]; road_m: number | null; commercial_pois: number | null
+    amenity_pois: number | null; estimated_households: number; basis: string } | null
+  started_at: string | null; completed_at: string | null; geometry?: GeoJSON.MultiPolygon
+}
+export type Study = StudyRow & {
+  study_geometry: GeoJSON.Polygon; units?: WorkUnit[]; can_split?: boolean; can_complete?: boolean
+  progress?: { units_total: number; units_completed: number; captures: number; target: number; coverage_percentage: number }
+  insights?: Insights | null; evidence_photos?: EvidencePhoto[]; outcome?: string
+}
+export type SplitPreview = {
+  study_id: number; study_geometry: GeoJSON.Polygon
+  units: { index: number; unit_code: string; geometry: GeoJSON.MultiPolygon; estimated_distance_m: number | null
+    target_capture_count: number; workload: NonNullable<WorkUnit['workload']>; suggested_assignee: string; suggested_assignee_name: string }[]
+  meta: { unit_count: number; total_points: number; balance_ratio: number; flags: string[]; study_area_km2: number }
+  executives: { id: string; name: string; open_points: number }[]
+}
+export type Capture = {
+  capture_id: number; capture_type: CaptureType; data: Record<string, any>; lat: number; lon: number; accuracy_m: number | null
+  captured_at: string; photos: { photo_id: number; photo_type: string; url: string }[]; warning?: string | null
+}
+export type UnitDetail = WorkUnit & {
+  study_id: number; label: string; locality: string | null; kind: 'property' | 'area'; property_lat?: number | null
+  property_lon?: number | null; captures: Capture[]; study_status: StudyStatus; geometry: GeoJSON.MultiPolygon; note?: string | null
+}
+export type PropertyCatchment = {
+  study_id: number; status: StudyStatus; requested_at: string; started_at: string | null; completed_at: string | null
+  reused: boolean; reused_from_study_id: number | null; reuse_reason: string | null; data_quality_flags: string[]
+  insights?: Insights | null; evidence_photos?: EvidencePhoto[]; insight_versions?: number[]; survey_age_days?: number
 }

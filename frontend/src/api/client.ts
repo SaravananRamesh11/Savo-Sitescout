@@ -1,6 +1,6 @@
 import type {
-  Area, Assignment, Compare, Duplicate, Evaluation, FieldError, Persona, PropertyDetail, PropertySummary,
-  ReportDetail, ReportStatus, ReportSummary, Stage, Store,
+  Area, Assignment, Capture, CaptureType, Compare, Duplicate, Evaluation, FieldError, Insights, Persona, PropertyDetail,
+  PropertySummary, ReportDetail, ReportStatus, ReportSummary, SplitPreview, Stage, Store, Study, StudyRow, UnitDetail, WorkUnit,
 } from '../types'
 
 /** `detail` carries structured server payloads (field errors, duplicate/warning acknowledgements). */
@@ -107,7 +107,41 @@ export const api = {
   submit: (id: number, body: { acknowledge_duplicates?: boolean; acknowledge_warnings?: boolean }) =>
     req<PropertyDetail>(`/properties/${id}/submit`, json('POST', body)),
   evaluationStatus: (id: number) => req<{ latest: Evaluation | null; has_completed: boolean }>(`/properties/${id}/evaluation-status`),
-  transition: (id: number, to_stage: Stage, reason?: string, notes?: string) =>
-    req<PropertyDetail>(`/properties/${id}/transition`, json('POST', { to_stage, reason, notes })),
+  transition: (id: number, to_stage: Stage, reason?: string, notes?: string, force_new?: boolean) =>
+    req<PropertyDetail>(`/properties/${id}/transition`, json('POST', { to_stage, reason, notes, force_new })),
   reEvaluate: (id: number) => req<{ version: number }>(`/properties/${id}/re-evaluate`, json('POST')),
+
+  // M3: ground catchment survey
+  requestStudy: (body: { property_id?: number; area_id?: number; force_new?: boolean }) =>
+    req<Study & { outcome: string }>('/catchments', json('POST', body)),
+  studies: () => req<StudyRow[]>('/catchments'),
+  study: (id: number) => req<Study>(`/catchments/${id}`),
+  areaCatchment: (areaId: number) => req<StudyRow | null>(`/areas/${areaId}/catchment`),
+  splitPreview: (id: number, units?: number) => req<SplitPreview>(`/catchments/${id}/split-preview`, json('POST', { units })),
+  createUnits: (id: number, units: number | undefined, assignments: string[]) =>
+    req<{ units: WorkUnit[] }>(`/catchments/${id}/work-units`, json('POST', { units, assignments })),
+  insightsPreview: (id: number) => req<Insights>(`/catchments/${id}/insights-preview`),
+  completeStudy: (id: number) => req<Study>(`/catchments/${id}/complete`, json('POST')),
+  regenerateInsights: (id: number) => req<Insights>(`/catchments/${id}/insights`, json('POST')),
+  insightVersions: (id: number) => req<Insights[]>(`/catchments/${id}/insights`),
+  surveyUnits: () => req<(WorkUnit & { study_id: number; label: string; locality: string | null; kind: string })[]>('/survey/units'),
+  surveyUnit: (id: number) => req<UnitDetail>(`/survey/units/${id}`),
+  startUnit: (id: number) => req<UnitDetail>(`/survey/units/${id}/start`, json('POST')),
+  completeUnit: (id: number) => req<UnitDetail>(`/survey/units/${id}/complete`, json('POST')),
+  addCapture: (id: number, body: { capture_type: CaptureType; data: Record<string, unknown>; lat: number; lon: number; accuracy?: number | null }) =>
+    req<Capture & { unit: WorkUnit }>(`/survey/units/${id}/captures`, json('POST', body)),
+  editCapture: (id: number, body: Record<string, unknown>) => req<Capture>(`/survey/captures/${id}`, json('PATCH', body)),
+  deleteCapture: (id: number) => req(`/survey/captures/${id}`, json('DELETE')),
+  addCapturePhoto: (id: number, type: string, blob: Blob, loc?: { lat: number; lon: number; accuracy?: number | null }) => {
+    const f = new FormData()
+    f.append('photo_type', type)
+    f.append('file', blob, `${type}.jpg`)
+    if (loc) {
+      f.append('lat', String(loc.lat))
+      f.append('lon', String(loc.lon))
+      if (loc.accuracy != null) f.append('accuracy', String(loc.accuracy))
+    }
+    return req<{ photo_id: number; url: string }>(`/survey/captures/${id}/photos`, { method: 'POST', body: f })
+  },
+  deleteCapturePhoto: (id: number, pid: number) => req(`/survey/captures/${id}/photos/${pid}`, json('DELETE')),
 }

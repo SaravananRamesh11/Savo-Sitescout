@@ -46,6 +46,9 @@ def env(monkeypatch):
     from sqlalchemy import text
 
     ids = [r[0] for r in db.execute(text("select id from properties where area_id=:a"), {"a": area.id})]
+    if ids:  # M3: catchment studies point at properties with ON DELETE RESTRICT, so they go first
+        db.execute(text("delete from catchment_studies where reused_from_study_id is not null and property_id = any(:ids)"), {"ids": ids})
+        db.execute(text("delete from catchment_studies where property_id = any(:ids)"), {"ids": ids})
     for t in ("property_evaluations", "property_status_history", "property_photos", "property_field_competitors"):
         if ids:
             db.execute(text(f"delete from {t} where property_id = any(:ids)"), {"ids": ids})
@@ -242,7 +245,9 @@ def test_final_review_preserves_updated_evaluation_and_decision(env):
     assert d["evaluation"]["trigger"] == "catchment_completed" and d["evaluation"]["version"] == v_before + 1
     assert d["original_evaluation"]["version"] == v_before  # the original M2 result is still there, untouched
     assert d["updated_evaluation"]["version"] == v_before + 1
-    assert d["score_change"] is not None and d["catchment"] is None  # no catchment data exists yet, and none is invented
+    assert d["score_change"] is not None
+    # the requested study exists but its survey never ran in this test: no findings are shown, none are invented
+    assert d["catchment"]["status"] == "REQUESTED" and "insights" not in d["catchment"]
     assert set(d["allowed_next_stages"]) == {"APPROVED", "REJECTED"}
 
     assert c.post(f"/api/properties/{pid}/transition", json={"to_stage": "APPROVED"}, headers=MGR).status_code == 422  # reason needed

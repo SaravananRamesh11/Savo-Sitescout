@@ -19,7 +19,9 @@ STRICT RULES
   signal is neither good nor bad by itself. Zero competition is not automatically an opportunity.
 - If a factor is unscored ("Insufficient data"), say so; never guess its value.
 - If data_quality_flags contains population_mocked or similar, mention the caveat.
-- Reference factors by their `key` and risks by their `code`.
+- Reference factors by their `key` and risks by their `code`. If FACTS has a `catchment` block (ground survey done by
+  people on site), you may cite it with the factor key `ground_survey`; it is context for the decision and does NOT
+  change the score.
 Return ONLY a JSON object:
 {"summary": "2-3 sentences: recommendation and the main reasons",
  "reasons": [{"factor": "<factor key>", "text": "one sentence"}],
@@ -57,7 +59,8 @@ def build_facts(property_id: int, x: dict, result: dict, metrics: dict, risks: l
                     "recommendation": rec, "reason": metrics.get("recommendation_reason")},
         "factors": [{k: f[k] for k in keep} for f in result["breakdown"]],
         "metrics": {k: v for k, v in metrics.items() if k not in ("poi", "demographics", "field_competitors",
-                                                                   "recommendation_reason")},
+                                                                   "recommendation_reason", "catchment")},
+        "catchment": metrics.get("catchment"),
         "nearby": (x.get("poi") or {}),
         "demographics": x.get("demo"),
         "m1": {k: (x.get("m1") or {}).get(k) for k in ("area_score", "cell_score", "is_hotspot", "hotspot_rank",
@@ -81,6 +84,13 @@ def template_explanation(facts: dict) -> dict:
     weak = [f for f in scored[::-1][:2] if f["points"] / max(f["effective_weight"], 1e-9) < 0.5]
     reasons += [{"factor": f["key"], "text": f"Weak spot - {f['label'].lower()}: {f['explanation']}."} for f in weak]
     reasons += [{"factor": k, "text": "Insufficient data, so this factor was not scored."} for k in unscored[:3]]
+    cat = facts.get("catchment")
+    if cat:
+        top = " ".join(cat["key_findings"][:3])
+        reasons.append({"factor": "ground_survey",
+                        "text": f"Ground survey (independent of the score): {top}"})
+        for t in cat["risks"][:2]:
+            reasons.append({"factor": "ground_survey", "text": f"Ground-survey risk: {t}"})
     notes = [{"code": r["code"], "text": r["text"]} for r in facts["risks"][:5]]
     return {"summary": summary, "reasons": reasons, "risk_notes": notes,
             "caveats": [c for c in facts["data_quality_flags"]]}
@@ -89,7 +99,7 @@ def template_explanation(facts: dict) -> dict:
 def _validate(out: dict, facts: dict) -> list[str]:
     if not isinstance(out, dict) or not isinstance(out.get("summary"), str) or not out["summary"].strip():
         return ["missing summary"]
-    keys = {f["key"] for f in facts["factors"]}
+    keys = {f["key"] for f in facts["factors"]} | ({"ground_survey"} if facts.get("catchment") else set())
     codes = {r["code"] for r in facts["risks"]}
     problems, texts = [], [out["summary"]]
     for r in out.get("reasons") or []:

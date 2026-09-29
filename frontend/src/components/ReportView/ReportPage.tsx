@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError } from '../../api/client'
 import type { ReportDetail, ReportStatus } from '../../types'
 import FitnessReportCard from './FitnessReportCard'
+import AreaCatchmentCard from '../Survey/AreaCatchmentCard'
 import HotspotList from './HotspotList'
 import { AreaProfile, DataSources } from './ProfileAndSources'
 import ReportMap from './ReportMap'
@@ -88,6 +89,7 @@ export default function ReportPage({ reportId, onBack }: { reportId: number; onB
               <FitnessReportCard r={detail} />
               <HotspotList hotspots={detail.hotspots} reportId={detail.report_id} areaId={detail.area_id} areaName={detail.area_name} canAssign />
               <ScoreBreakdown factors={detail.score_breakdown} />
+              <AreaCatchmentCard areaId={detail.area_id} />
             </div>
             <div className="stack sticky-col">
               <ReportMap geometry={detail.area_geometry} hotspots={detail.hotspots} />

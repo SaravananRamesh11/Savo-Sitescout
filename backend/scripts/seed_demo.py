@@ -1,8 +1,8 @@
-"""Demo data for M2: (optionally) clears M2 tables, then creates scouting assignments from the latest completed M1
+"""Demo data: (optionally) clears the M2 and M3 tables, then creates scouting assignments from the latest completed M1
 reports' top hotspots (one for Ravi, one for Divya). Safe to re-run.
 
     python scripts/seed_demo.py            # add assignments only if none exist
-    python scripts/seed_demo.py --reset    # wipe M2 tables (properties, photos, evaluations, history, assignments) first
+    python scripts/seed_demo.py --reset    # wipe M2 + M3 tables (properties, photos, evaluations, studies, survey data) first
 """
 import shutil
 import sys
@@ -18,12 +18,17 @@ from app.services import storage
 
 db = get_session()
 if "--reset" in sys.argv:
+    # M3 first: catchment studies reference properties/areas with ON DELETE RESTRICT
+    for t in ("catchment_insights", "survey_capture_photos", "survey_captures", "survey_work_units"):
+        db.execute(text(f"delete from {t}"))
+    db.execute(text("delete from catchment_studies where reused_from_study_id is not null"))
+    db.execute(text("delete from catchment_studies"))
     for t in ("property_evaluations", "property_status_history", "property_photos", "property_field_competitors",
               "properties", "scouting_assignments"):
         db.execute(text(f"delete from {t}"))
     db.commit()
     shutil.rmtree(storage.LOCAL_DIR, ignore_errors=True)
-    print("M2 tables cleared (M1 data untouched)")
+    print("M2 and M3 tables cleared (M1 data untouched; photos already in R2 are not deleted)")
 
 if db.query(ScoutingAssignment).count() == 0:
     reports = (db.query(AreaReport).filter(AreaReport.status == "completed")
