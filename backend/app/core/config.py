@@ -57,3 +57,11 @@ MAX_GRID_CELLS = 100
 MAX_AREA_KM2 = float(os.getenv("MAX_AREA_KM2", "60"))
 UTM_EPSG = 32644  # UTM zone 44N covers Chennai (80.2E)
 HOTSPOT_COUNT = 5
+
+# --- Cloudflare R2 photo storage (private bucket + presigned URLs). All values come from the environment. ---
+R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID", "")
+R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
+R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")
+R2_BUCKET = os.getenv("R2_BUCKET", "")
+R2_SIGNED_URL_TTL_S = int(os.getenv("R2_SIGNED_URL_TTL_S", "3600"))
+MAX_PHOTO_BYTES = int(os.getenv("MAX_PHOTO_BYTES", str(8 * 1024 * 1024)))

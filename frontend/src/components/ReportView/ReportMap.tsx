@@ -22,11 +22,21 @@ const pin = (rank: number) =>
   })
 
 // Boundary + numbered hotspot pins only (no per-cell rendering in M1).
+function AutoResize() {
+  const map = useMap()
+  useEffect(() => {
+    const ro = new ResizeObserver(() => map.invalidateSize())
+    ro.observe(map.getContainer())
+    return () => ro.disconnect()
+  }, [map])
+  return null
+}
+
 export default function ReportMap({ geometry, hotspots }: { geometry: GeoJSON.Polygon; hotspots: Hotspot[] }) {
   return (
     <div className="report-map">
-      <MapContainer center={[13.0827, 80.2707]} zoom={13} style={{ height: '100%' }} scrollWheelZoom={false}>
-        <TileLayer
+      <MapContainer maxZoom={21} center={[13.0827, 80.2707]} zoom={13} style={{ height: '100%' }} scrollWheelZoom={false}>
+        <TileLayer maxZoom={21} maxNativeZoom={19}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
@@ -37,6 +47,7 @@ export default function ReportMap({ geometry, hotspots }: { geometry: GeoJSON.Po
           </Marker>
         ))}
         <Fit geometry={geometry} />
+          <AutoResize />
       </MapContainer>
     </div>
   )

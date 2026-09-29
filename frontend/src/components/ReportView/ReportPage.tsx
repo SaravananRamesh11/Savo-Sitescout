@@ -86,7 +86,7 @@ export default function ReportPage({ reportId, onBack }: { reportId: number; onB
           <div className="page-grid two">
             <div className="stack">
               <FitnessReportCard r={detail} />
-              <HotspotList hotspots={detail.hotspots} />
+              <HotspotList hotspots={detail.hotspots} reportId={detail.report_id} areaId={detail.area_id} areaName={detail.area_name} canAssign />
               <ScoreBreakdown factors={detail.score_breakdown} />
             </div>
             <div className="stack sticky-col">

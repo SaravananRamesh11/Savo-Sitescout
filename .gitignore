@@ -28,3 +28,6 @@ Thumbs.db
 
 # vendored third-party clone (cited in README, installed via uvx instead)
 open-streetmap-mcp/
+
+# local photo fallback
+backend/uploads/

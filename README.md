@@ -1,11 +1,11 @@
-# Savo SiteScout: Chennai expansion intelligence (Milestone 1: Area Intelligence)
+# Savo SiteScout: Chennai expansion intelligence (M1 Area Intelligence + M2 Property Scouting)
 
 A BD Manager picks any part of Chennai (locality name, pincode, or grid cells on a map), runs a **virtual
 analysis**, and gets a saved, timestamped **Area Fitness Report**: what the area is like, a 0-100 fit rating,
 the reasoning behind it, and the 5 places to scout first. Built mobile-first (360 px and up) in the Savomart
 brand colours (`#782B90` purple, `#FFF200` yellow).
 
-> Status: **Milestone 1 complete.** M2 (property scouting) and M3 (catchment surveys) are planned separately.
+> Status: **Milestones 1 and 2 complete.** M3 (catchment surveys) is next. See Milestone 2 below.
 > The `areas` table is the anchor M2/M3 will point to.
 
 ## Run it locally
@@ -21,7 +21,8 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # Window
 python scripts/init_db.py                  # PostGIS + tables (also runs at API startup)
 python scripts/ingest_pincodes.py          # ~2.5 min, rebuilds data/chennai_pincodes.geojson (already committed)
 python -m uvicorn app.main:app --port 8000
-python -m pytest -q                        # 22 tests
+python scripts/seed_demo.py                # demo scouting assignments from M1 hotspots (--reset wipes M2 tables)
+python -m pytest -q                        # unit tests; integration tests use the real DB and take minutes
 
 # frontend (new terminal)
 cd frontend && npm install && npm run dev  # http://localhost:5173 (proxies /api to :8000)
@@ -156,3 +157,121 @@ headless-browser screenshots at phone and desktop widths. Chat exports go in `/a
 
 ## Demo video
 _Add the Google Drive link here (3-5 minutes, "Anyone with the link can view")._
+
+
+---
+
+# Milestone 2: Property scouting and evaluation
+
+Flow: **BD Manager** assigns an M1 hotspot to a **BD Executive** -> the executive captures a property on a phone
+(GPS pin, details, photos) -> the system runs a **deterministic, versioned evaluation** -> the manager sees a
+30-second review screen and either **rejects** the property or **requests a catchment study** (M3).
+
+Roles (switcher, top right): Asha (BD Manager), Ravi and Divya (BD Executives). An `X-Persona` header carries the
+choice; the API enforces who may do what (state machine + role checks). This is seeded-persona access control, not
+real authentication.
+
+## Demo path
+1. As **Asha**: open a report (e.g. Velachery) -> **Assign to executive** on a hotspot -> pick Divya, add a note.
+2. Switch to **Divya**: *Assignments* -> open it -> **Add property** (7-step stepper):
+   Location (**Use current location**, drag the pin, or tap the map) -> Rent -> Building -> Access & parking ->
+   Competitors seen -> Photos (camera) -> Review & submit. Missing required fields and photos are listed with the
+   exact reason; a nearby existing property triggers a duplicate warning.
+3. After submit the evaluation runs in the background. Switch back to **Asha**: *Properties* -> open it. Reject with
+   a reason, or **Request catchment study**. Every change is in the pipeline history.
+
+**Geolocation needs HTTPS or localhost.** On a phone over the plain LAN URL the browser blocks it (the UI says so and
+falls back to tapping the map). For phone demos use an HTTPS tunnel or an HTTPS dev server. On a laptop the location
+can be off by hundreds of metres; that is why the pin is draggable and the accuracy circle is shown.
+
+## Data model (new tables; M1 tables are untouched)
+| table | purpose |
+|---|---|
+| `properties` | one row per building: exact `POINT` (SRID 4326, GiST index), rent, areas, access, parking, `pipeline_stage`, duplicate flags. **No cell or report foreign key**: reports are snapshots, so the point is the source of truth and cells/reports are found by spatial query |
+| `property_photos` | `storage_key` only (never a URL or binary); photo type; size |
+| `property_field_competitors` | competitors the executive saw (kept separate from OpenStreetMap competitors) |
+| `property_evaluations` | **append-only, versioned**: score, confidence, breakdown, insights, risks, recommendation, explanation, data sources, flags, M1 context, trigger |
+| `property_status_history` | every stage change: from, to, who, when, reason |
+| `scouting_assignments` | manager -> executive task tied to an area and a copied hotspot (cell id + coordinates) |
+
+## Pipeline
+`ASSIGNED` (editable in-field draft) -> `SUBMITTED` -> `UNDER_REVIEW` -> `CATCHMENT_REQUESTED` ->
+`CATCHMENT_IN_PROGRESS` -> `CATCHMENT_COMPLETED` -> `FINAL_REVIEW` -> `APPROVED` / `REJECTED`, plus a manager
+"send back for changes" (back to `ASSIGNED`).
+* **No reject before the catchment study.** `REJECTED` is only reachable from `FINAL_REVIEW`, after the ground survey.
+  Before that the manager can only start review, send back for changes, or request the study.
+* **Requesting a catchment study needs no typed text.** One click; the history records "Catchment study requested".
+  What gets recorded on the ground is defined by the survey executive's capture forms. Send back for changes, approve and
+  reject each require a written reason.
+* **Drafts are private to the executive.** The manager's Properties list only shows submitted properties. A property
+  the manager sent back stays visible, labelled "Sent back to executive".
+The transitions after `CATCHMENT_REQUESTED` are in the state machine (`services/pipeline.py`) for M3 to drive.
+
+## Final review (after the catchment study)
+`CATCHMENT_COMPLETED` -> `FINAL_REVIEW` -> `APPROVED` or `REJECTED`. The catchment stages are driven by Milestone 3 (the
+survey side / system), not by the BD manager or executive.
+* **Entering final review creates a new evaluation version** (trigger `catchment_completed`). The original M2 evaluation
+  is never edited, so the review screen shows the original and the updated score side by side, with the change.
+* **The manager decides on a finished evaluation.** Approve and reject are blocked while the updated evaluation is still
+  running. A **reason is mandatory for both**.
+* **Audit trail:** the decision is stored in `property_status_history` with who, when, the reason and the
+  `evaluation_id` the manager was looking at ("Decided on evaluation v2"). Approved and rejected are terminal.
+* **No invented survey data:** until M3 exists there are no catchment insights, and the screen says so. The final-review
+  evaluation is a real re-run on the same public and field data.
+* **Testing without M3:** `python scripts/advance_property.py <property id>` moves a property from
+  `CATCHMENT_REQUESTED` to `FINAL_REVIEW` through the same state machine as the `system` actor. It is a dev helper only;
+  nothing in the app UI can skip the survey stages.
+
+## Evaluation (deterministic; the LLM never calculates)
+Eight factors with configurable weights (`core/property_scoring_constants.py`, env-overridable): rent affordability 15,
+accessibility/visibility 15, demand generators 15, demographic fit 10, competition vs demand 15, parking 10, space 10,
+M1 area fitness 10. **All weights, caps and bands are documented assumptions, not validated Savomart rules.**
+* **Missing data is never invented.** Factors that cannot be scored show "Insufficient data", the remaining weights
+  are rescaled, and a **confidence** figure (share of weight actually assessed) is shown beside the score.
+* **Rent:** rent per sq ft is always shown. `rent / expected revenue` is only computed if a manager supplies an
+  expected monthly revenue (labelled with its source) and is compared with a configurable 3-5% band, an initial
+  assumption. With no revenue the factor is unscored: not zero, not estimated.
+* **Traffic signal** is a modifier, not a bonus: it helps only with easy entry/exit and counts against the site with
+  difficult entry/exit.
+* **Demand:** exact school / college / hospital counts within 250 m and 500 m of the pin (from cached or live
+  OpenStreetMap data). Treated as trip-generator signals, not guaranteed customers. Real OSM data only: synthetic
+  fallback data is never scored.
+* **Competition:** organised competitors (supermarkets, plus convenience stores matching a configurable brand list)
+  vs other grocery; field observations are shown separately and never added to public counts (they may be the same
+  store). Zero competition is scored together with demand: with weak demand it is neutral, not "high opportunity".
+* **Demographics:** M1's estimated locality data (flagged, lowers confidence). Income fit is not assessed: there is
+  no income data and no Savomart target range.
+* **Space:** sales/storage ratios only when measured; no 80:20 rule assumed.
+* **M1 context:** latest completed report for the area, the grid cell containing the pin (`ST_Contains`), hotspot
+  status, and the nearest Savomart (spatial query).
+* **Risks** are rule-generated and the **recommendation** is a deterministic band on score and confidence, with
+  high-severity risks (e.g. cannibalisation, heavy organised competition) preventing an automatic "proceed".
+* **Re-evaluation:** automatic on submit and via *Re-evaluate*; each run adds a new version (v1 stays available), and
+  M3 will add a version when a catchment study completes.
+* **LLM (explanation only):** same grounded pattern as M1 (facts in, JSON out, every number checked against the
+  facts, one retry, then a fixed template). No LLM key is configured here, so the template is used.
+
+## Validation and duplicates
+* Drafts accept partial data; **submit** requires location, address, locality, pincode, rent, areas, frontage,
+  floors, type, access/parking answers and the required photos (front, road, interior). Errors are per field.
+  Implausible values (negative area, ground floor larger than total, sales + storage larger than total, pin outside
+  Chennai) are rejected at any save; unusual values (rent per sq ft, weak GPS, far from the hotspot) are warnings.
+* **Duplicates:** the same building is detected by `ST_DWithin` within 20 m and by identical normalised address +
+  pincode. It warns ("Possible duplicate property found 12 m away."); it never merges, upserts or overwrites, and the
+  manager sees the flag. Two executives submitting the same building create two rows for a human to reconcile.
+
+## Photo storage
+Photos are stored outside Postgres. With `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and
+`R2_BUCKET` set, they go to a **private Cloudflare R2 bucket** and are shown through short-lived presigned URLs
+(the raw object URL is not public). Uploads go browser -> API -> R2, so no bucket CORS is needed; phones compress
+photos to about 1600 px first. Without those variables the app falls back to a gitignored local `backend/uploads/`
+folder. Check the connection with `python scripts/check_r2.py` (it never prints secrets).
+
+## M2 trade-offs and known issues
+* Personas are seeded, not authenticated. Anyone who can call the API can set `X-Persona`.
+* Demographics are estimates and OSM competitor/brand detection is heuristic (the brand list is configurable).
+* Weights and bands are assumptions to calibrate against real store performance.
+* The catchment request is recorded as a stage plus reason; M3 attaches the actual study.
+* Evaluation runs as a FastAPI background task (fine for one node; a queue would be next).
+* The managed database is remote (about 0.3 s per query), so the integration tests take minutes.
+* Not built: offline capture with sync, PDF decision pack, reverse-geocode caching.

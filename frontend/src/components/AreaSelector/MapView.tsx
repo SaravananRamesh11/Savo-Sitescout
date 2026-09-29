@@ -158,8 +158,8 @@ export default function MapView({
   }, [])
 
   return (
-    <MapContainer center={CHENNAI} zoom={11} minZoom={9} className="map-wrap" zoomControl={false}>
-      <TileLayer
+    <MapContainer maxZoom={21} center={CHENNAI} zoom={11} minZoom={9} className="map-wrap" zoomControl={false}>
+      <TileLayer maxZoom={21} maxNativeZoom={19}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
       />

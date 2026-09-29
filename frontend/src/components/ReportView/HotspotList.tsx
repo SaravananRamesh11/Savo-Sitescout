@@ -1,6 +1,11 @@
+import { useState } from 'react'
 import type { Hotspot } from '../../types'
+import AssignSheet from '../Manager/AssignSheet'
 
-export default function HotspotList({ hotspots }: { hotspots: Hotspot[] }) {
+export default function HotspotList({ hotspots, reportId, areaId, areaName, canAssign }: {
+  hotspots: Hotspot[]; reportId?: number; areaId?: number; areaName?: string; canAssign?: boolean
+}) {
+  const [assigning, setAssigning] = useState<Hotspot | null>(null)
   return (
     <section className="card">
       <h2>Scout here first</h2>
@@ -30,9 +35,15 @@ export default function HotspotList({ hotspots }: { hotspots: Hotspot[] }) {
                 ))}
               </ul>
             )}
+            {canAssign && reportId != null && areaId != null && (
+              <button className="btn sm" style={{ marginTop: 10 }} onClick={() => setAssigning(h)}>Assign to executive</button>
+            )}
           </div>
         </article>
       ))}
+      {assigning && reportId != null && areaId != null && (
+        <AssignSheet hotspot={assigning} areaId={areaId} areaName={areaName ?? ''} reportId={reportId} onClose={() => setAssigning(null)} />
+      )}
     </section>
   )
 }
