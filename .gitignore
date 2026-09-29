@@ -1,25 +1,30 @@
-# Ignore Python cache
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# Virtual environment
 .venv/
 venv/
-env/
-.env/
+.pytest_cache/
+*.egg-info/
 
-# Environment variables
-.env
+# node
+node_modules/
+dist/
+.vite/
 
-# VSCode settings
-.vscode/
-
-# Logs
+# data
+backend/data/raw/
 *.log
 
-# Build and dist files
-build/
-dist/
-*.egg-info/
+# editors / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# vendored third-party clone (cited in README, installed via uvx instead)
+open-streetmap-mcp/

@@ -1,0 +1,93 @@
+{
+ "_note": "Static snapshot of Savomart Chennai-region operational stores (from the Stores API on 2026-09-29), used only when the live API and the DB cache are both unavailable.",
+ "stores": [
+  {
+   "store_code": "OCHNARS01",
+   "name": "Avadi Road, Senneerkuppam",
+   "zone": "CHN",
+   "latitude": 13.05117632,
+   "longitude": 80.11253414,
+   "is_operational": true
+  },
+  {
+   "store_code": "OCHNKNT01",
+   "name": "Kaveri Nagar, Thiruvanmiyur",
+   "zone": "CHN",
+   "latitude": 12.973889,
+   "longitude": 80.263194,
+   "is_operational": true
+  },
+  {
+   "store_code": "OCHNLKP01",
+   "name": "Lakshmipuram",
+   "zone": "CHN",
+   "latitude": 13.13737372,
+   "longitude": 80.20133418,
+   "is_operational": true
+  },
+  {
+   "store_code": "OCHNMAN01",
+   "name": "Manali",
+   "zone": "CHN",
+   "latitude": 13.162268,
+   "longitude": 80.258632,
+   "is_operational": true
+  },
+  {
+   "store_code": "OCHNMAT01",
+   "name": "Mathur",
+   "zone": "CHN",
+   "latitude": 13.167768,
+   "longitude": 80.247988,
+   "is_operational": true
+  },
+  {
+   "store_code": "OCHNPLV01",
+   "name": "Palavakkam",
+   "zone": "CHN",
+   "latitude": 12.96430471,
+   "longitude": 80.25421793,
+   "is_operational": true
+  },
+  {
+   "store_code": "OCHNPER01",
+   "name": "Perambur",
+   "zone": "CHN",
+   "latitude": 13.11948864,
+   "longitude": 80.2448056,
+   "is_operational": true
+  },
+  {
+   "store_code": "OCHNSNT01",
+   "name": "Sakthivel Nagar, Thiruverkadu",
+   "zone": "CHN",
+   "latitude": 13.071371,
+   "longitude": 80.115341,
+   "is_operational": true
+  },
+  {
+   "store_code": "OCHNTNC01",
+   "name": "Thamarai Nagar, Cholambedu",
+   "zone": "CHN",
+   "latitude": 13.12083988,
+   "longitude": 80.13787845,
+   "is_operational": true
+  },
+  {
+   "store_code": "OCHNTND01",
+   "name": "Tondiarpet",
+   "zone": "CHN",
+   "latitude": 13.12289502,
+   "longitude": 80.29022281,
+   "is_operational": true
+  },
+  {
+   "store_code": "OCHNVNK01",
+   "name": "Vivekananda Nagar, Kodungaiyur East",
+   "zone": "CHN",
+   "latitude": 13.12916511,
+   "longitude": 80.25880305,
+   "is_operational": true
+  }
+ ]
+}
