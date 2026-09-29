@@ -1,0 +1,32 @@
+# Render blueprint for the backend (FastAPI). The frontend is deployed separately on Vercel.
+# Secret values are NOT stored here: `sync: false` means Render asks for them in the dashboard.
+services:
+  - type: web
+    name: savo-sitescout-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: db_url            # PostGIS-enabled Postgres connection string
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: SAVOMART_CRON_TOKEN
+        sync: false
+      - key: CORS_ORIGINS      # the exact Vercel production URL, e.g. https://your-project.vercel.app
+        sync: false
+      - key: LLM_PROVIDER      # optional: anthropic | openai | none
+        value: none
+      - key: LLM_API_KEY       # optional
+        sync: false

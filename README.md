@@ -379,3 +379,43 @@ reason and evaluation version are stored in the audit history as in M2.
 * No offline capture (out of scope by design): observations are saved when submitted.
 * The capture list supports deleting and re-adding an observation; an edit screen is not built (the API supports edits).
 * Integration tests use the real remote database and take several minutes.
+
+
+---
+
+# Deploying (Vercel frontend + Render backend)
+
+The frontend is static, so it goes on **Vercel**. The backend must run on an always-on server, because analyses and
+property evaluations keep working after the HTTP reply. Vercel's serverless functions would cut them off, so the backend
+goes on **Render**. The database (PostGIS) and photo storage (Cloudflare R2) are hosted services already.
+
+**Live URLs:** _add them here after deploying._ Frontend: `https://<project>.vercel.app` · Backend health check:
+`https://<service>.onrender.com/api/health`
+
+## 1. Backend on Render
+1. Push the repo to GitHub. On render.com choose **New → Blueprint** and pick the repo (it reads `render.yaml`), or
+   **New → Web Service** with root directory `backend`, build `pip install -r requirements.txt`, start
+   `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, health check `/api/health`.
+2. Enter these environment variables in the Render dashboard (never in a file): `db_url`, `R2_ACCOUNT_ID`,
+   `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `SAVOMART_CRON_TOKEN`, and optionally `LLM_PROVIDER` /
+   `LLM_API_KEY`.
+3. Let Render reach the database (allowed-IP settings on your database provider).
+4. Open `https://<service>.onrender.com/api/health`: it should say `"database": true`.
+
+## 2. Frontend on Vercel
+1. `npm i -g vercel`, then `vercel login`.
+2. In `frontend/` run `vercel` once to link the project (accept the Vite defaults; `vercel.json` sets the build).
+3. Set the backend address: `vercel env add VITE_API_BASE production` and enter the Render URL without a trailing slash.
+   Vite bakes it in at build time, so changing it needs a redeploy.
+4. `vercel --prod` prints the production URL.
+
+## 3. Connect them
+Set `CORS_ORIGINS` on Render to the exact Vercel production URL (for example `https://your-project.vercel.app`, no
+trailing slash) and redeploy the backend. Use the production address, not a per-deployment preview URL.
+
+## Notes
+* **Free tier:** Render's free web service sleeps when idle, so the first request after a pause can take about a minute.
+  Open the site once before a demo.
+* **HTTPS:** Vercel serves HTTPS, which browsers require for "Use current location" on a phone.
+* In development nothing changes: leave `VITE_API_BASE` empty and the Vite dev server proxies `/api` to the backend.
+* Deployment settings contain only variable **names** (`render.yaml`, `frontend/.env.example`); no secret is stored in the repo.

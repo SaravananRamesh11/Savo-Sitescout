@@ -40,11 +40,15 @@ export const setPersona = (id: string) => {
 }
 export const getPersona = () => personaId
 
+// Development: empty, so requests go to the same origin and the Vite dev server proxies /api to the backend.
+// Production (Vercel): the public URL of the backend, set as VITE_API_BASE at build time (no trailing slash).
+const BASE = ((import.meta.env.VITE_API_BASE as string | undefined) ?? '').replace(/\/+$/, '')
+
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isForm = init.body instanceof FormData
   let res: Response
   try {
-    res = await fetch(`/api${path}`, {
+    res = await fetch(`${BASE}/api${path}`, {
       ...init,
       headers: { ...(isForm ? {} : { 'Content-Type': 'application/json' }), 'X-Persona': personaId, ...(init.headers ?? {}) },
     })

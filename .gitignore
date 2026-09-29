@@ -31,3 +31,6 @@ open-streetmap-mcp/
 
 # local photo fallback
 backend/uploads/
+
+# scratch
+backend/data/*.txt
