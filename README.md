@@ -682,3 +682,17 @@ trailing slash) and redeploy the backend. Use the production address, not a per-
 * **HTTPS:** Vercel serves HTTPS, which browsers require for "Use current location" on a phone.
 * In development nothing changes: leave `VITE_API_BASE` empty and the Vite dev server proxies `/api` to the backend.
 * Deployment settings contain only variable **names** (`render.yaml`, `frontend/.env.example`); no secret is stored in the repo.
+
+
+
+
+
+
+
+
+
+
+REQUIRED LINKS:
+chatgpt:https://chatgpt.com/c/6ab9e805-08d0-83e9-844c-47c1d573f29f
+demo_link:
+
