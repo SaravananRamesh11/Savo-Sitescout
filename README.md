@@ -693,6 +693,9 @@ trailing slash) and redeploy the backend. Use the production address, not a per-
 
 
 REQUIRED LINKS:
-chatgpt:https://chatgpt.com/c/6ab9e805-08d0-83e9-844c-47c1d573f29f
-demo_link:
+
+demo_link:https://drive.google.com/drive/u/2/folders/1si7sF4-mHgRR5WI2b2E3JmluOX6wQoeH
+chatgpt and claude chat history inside the demo
+
+
 
