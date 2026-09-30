@@ -48,6 +48,12 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "none").lower()  # anthropic | openai |
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "")  # for OpenAI-compatible providers (Groq, Gemini, Ollama...)
+# Optional comma-separated models to try in order when LLM_MODEL is rate-limited or overloaded (free-tier quotas are per model).
+LLM_FALLBACK_MODELS = [m.strip() for m in os.getenv("LLM_FALLBACK_MODELS", "").split(",") if m.strip()]
+# Gemini "thinking" models spend output tokens on hidden reasoning and can cut the answer short; "none" turns it off.
+# Defaults to "none" for the Gemini endpoint, empty (not sent) elsewhere; set LLM_REASONING_EFFORT to override.
+LLM_REASONING_EFFORT = os.getenv(
+    "LLM_REASONING_EFFORT", "none" if "generativelanguage.googleapis.com" in LLM_BASE_URL else "").lower()
 
 CORS_ORIGINS = [o for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o]
 

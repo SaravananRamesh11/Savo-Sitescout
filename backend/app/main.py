@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api.routes import areas, assignments, catchments, geo, properties, reports, survey
+from app.api.routes import analyst, areas, assignments, catchments, geo, properties, reports, survey
 from app.core.personas import PERSONAS
 from app.core import config
 from app.core.db import engine, warm_pool
@@ -52,3 +52,4 @@ app.include_router(properties.router, prefix="/api")
 app.include_router(geo.router, prefix="/api")
 app.include_router(catchments.router, prefix="/api")
 app.include_router(survey.router, prefix="/api")
+app.include_router(analyst.router, prefix="/api")

@@ -118,3 +118,41 @@ select.input { appearance: auto; }
 .check-row { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-2); padding: 4px 0; }
 .check-row input { width: 22px; height: 22px; accent-color: var(--purple); flex: none; }
 @media (min-width: 900px) { .obs-grid { grid-template-columns: 1fr 1fr; } }
+
+/* ---------- conversational analyst ---------- */
+.chat-list { display: grid; gap: 10px; }
+.bubble { max-width: 92%; padding: 10px 14px; border-radius: 16px; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+.bubble.user { justify-self: end; background: var(--purple); color: #fff; border-bottom-right-radius: 4px; }
+.bubble.assistant { justify-self: start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.bubble.soft { background: var(--warn-bg); color: var(--warn-ink); border-color: transparent; }
+.bubble p { margin: 0 0 6px; }
+.bubble p:last-child, .bubble ul:last-child { margin-bottom: 0; }
+.bubble ul { margin: 0 0 6px; padding-left: 20px; }
+.src-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.src-chip { min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--purple-tint-2); background: var(--purple-tint); color: var(--purple-dark); font-size: 13px; text-align: left; }
+.src-chip b { font-weight: 800; margin-right: 4px; }
+.src-chip:disabled { opacity: .6; }
+.chat-foot { flex: none; display: block; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); margin-bottom: var(--nav-h); }
+.chat-scroll { padding-bottom: 16px; }
+@media (min-width: 900px) { .chat-foot { margin-bottom: 0; } .bubble { max-width: 70%; } }
+.suggest { display: grid; gap: 8px; }
+.suggest .pill { white-space: normal; text-align: left; min-height: 44px; height: auto; padding: 8px 16px; }
+
+/* the question bar: a big search field first, docked above the nav once the chat has started */
+.sr-only { position: absolute; left: -9999px; }
+.chat-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.chat-head .btn { flex: none; }
+.ask-bar { display: flex; align-items: center; gap: 8px; min-height: 60px; padding: 6px 6px 6px 14px; background: var(--surface); border: 2px solid var(--purple); border-radius: 16px; box-shadow: 0 2px 10px rgba(120, 43, 144, .14); }
+.ask-bar:focus-within { box-shadow: 0 0 0 4px var(--purple-tint-2); }
+.ask-bar.docked { min-height: 52px; border-radius: 14px; box-shadow: none; }
+.ask-icon { color: var(--purple); display: grid; flex: none; }
+.ask-bar input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--ink); min-height: 44px; -webkit-appearance: none; appearance: none; }
+.ask-bar input::placeholder { color: var(--ink-3); }
+.ask-bar input::-webkit-search-cancel-button { display: none; }
+.ask-go { flex: none; min-width: 64px; min-height: 44px; padding: 0 18px; border: 0; border-radius: 11px; background: var(--purple); color: #fff; font-weight: 800; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; }
+.ask-go:disabled { background: var(--purple-tint-2); color: var(--purple-dark); cursor: not-allowed; }
+.ask-go .loader { width: 18px; height: 18px; }
+.suggest-box { display: grid; gap: 8px; }
+.suggest-box .hint { margin: 0; }
+.suggest .pill { font-weight: 600; font-size: 14px; }
+@media (min-width: 900px) { .chat-foot { padding-left: 24px; padding-right: 24px; } .chat-foot .ask-bar { max-width: 1072px; margin: 0 auto; } }

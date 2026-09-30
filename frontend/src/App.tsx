@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, getPersona, setPersona } from './api/client'
 import AreaPanel from './components/AreaSelector/AreaPanel'
 import { AssignmentDetail, AssignmentList } from './components/Executive/ExecutivePages'
+import Assistant from './components/Manager/Assistant'
 import PropertyList from './components/Manager/PropertyList'
 import PropertyWizard from './components/PropertyCapture/PropertyWizard'
 import PropertyReview from './components/PropertyReview/PropertyReview'
@@ -13,7 +14,7 @@ import type { Persona } from './types'
 
 type Route =
   | { name: 'analyse' } | { name: 'reports' } | { name: 'report'; id: number }
-  | { name: 'properties' } | { name: 'property'; id: number } | { name: 'edit'; id: number }
+  | { name: 'assistant' } | { name: 'properties' } | { name: 'property'; id: number } | { name: 'edit'; id: number }
   | { name: 'new'; assignment: number | null }
   | { name: 'assignments' } | { name: 'assignment'; id: number }
   | { name: 'studies' } | { name: 'study'; id: number } | { name: 'units' } | { name: 'unit'; id: number }
@@ -36,6 +37,7 @@ function parse(hash: string): Route {
   if (hash.startsWith('#/studies')) return { name: 'studies' }
   if (hash.startsWith('#/units')) return { name: 'units' }
   if (hash.startsWith('#/assignments')) return { name: 'assignments' }
+  if (hash.startsWith('#/assistant')) return { name: 'assistant' }
   if (hash.startsWith('#/properties')) return { name: 'properties' }
   if (hash.startsWith('#/reports')) return { name: 'reports' }
   return { name: 'home' } as unknown as Route
@@ -54,6 +56,7 @@ const Icon = {
   map: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z" /><path d="M9 4v14M15 6v14" /></svg>,
   doc: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></svg>,
   building: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21V5l8-2v18M12 9l8 2v10M8 9h1M8 13h1M8 17h1M16 15h1M16 18h1" /></svg>,
+  chat: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /><path d="M8.5 11h7M8.5 14.5h4" /></svg>,
   pin: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>,
 }
 
@@ -85,7 +88,7 @@ export default function App() {
   let r = parse(hash)
   // role-shaped home screen
   if ((r as { name: string }).name === 'home') r = isExec ? { name: 'assignments' } : isSM ? { name: 'studies' } : isSE ? { name: 'units' } : { name: 'analyse' }
-  const tab = r.name === 'analyse' ? 'analyse' : r.name === 'reports' || r.name === 'report' ? 'reports'
+  const tab = r.name === 'analyse' ? 'analyse' : r.name === 'assistant' ? 'assistant' : r.name === 'reports' || r.name === 'report' ? 'reports'
     : r.name === 'properties' || r.name === 'property' || r.name === 'edit' || r.name === 'new' ? 'properties'
     : r.name === 'studies' || r.name === 'study' ? 'studies' : r.name === 'units' || r.name === 'unit' ? 'units' : 'assignments'
 
@@ -113,6 +116,7 @@ export default function App() {
   } else {
     if (r.name === 'report') body = <ReportPage reportId={r.id} onBack={() => go('#/reports')} />
     else if (r.name === 'reports') body = <ReportList onOpen={(id) => go(`#/report/${id}`)} />
+    else if (r.name === 'assistant') body = <Assistant onOpen={go} />
     else if (r.name === 'properties') body = <PropertyList onOpen={(id) => go(`#/property/${id}`)} />
     else if (r.name === 'property') body = <PropertyReview id={r.id} onBack={() => go('#/properties')} onEdit={(id) => go(`#/property/${id}/edit`)} />
     else body = <AreaPanel onStarted={(id) => go(`#/report/${id}`)} />
@@ -133,6 +137,7 @@ export default function App() {
               <button aria-current={tab === 'analyse' ? 'page' : undefined} onClick={() => go('#/')}>{Icon.map} Analyse</button>
               <button aria-current={tab === 'reports' ? 'page' : undefined} onClick={() => go('#/reports')}>{Icon.doc} Reports</button>
               <button aria-current={tab === 'properties' ? 'page' : undefined} onClick={() => go('#/properties')}>{Icon.building} Properties</button>
+              <button aria-current={tab === 'assistant' ? 'page' : undefined} onClick={() => go('#/assistant')}>{Icon.chat} Ask</button>
             </>}
             {isSM && <button aria-current={tab === 'studies' ? 'page' : undefined} onClick={() => go('#/studies')}>{Icon.map} Studies</button>}
             {isSE && <button aria-current={tab === 'units' ? 'page' : undefined} onClick={() => go('#/units')}>{Icon.pin} My units</button>}

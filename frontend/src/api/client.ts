@@ -1,5 +1,5 @@
 import type {
-  Area, Assignment, Capture, CaptureType, Compare, Duplicate, Evaluation, FieldError, Insights, Persona, PropertyDetail,
+  Area, Assignment, Capture, CaptureType, ChatResponse, ChatTurn, Compare, Duplicate, Evaluation, FieldError, Insights, Persona, PropertyDetail,
   PropertySummary, ReportDetail, ReportStatus, ReportSummary, SplitPreview, Stage, Store, Study, StudyRow, UnitDetail, WorkUnit,
 } from '../types'
 
@@ -148,4 +148,5 @@ export const api = {
     return req<{ photo_id: number; url: string }>(`/survey/captures/${id}/photos`, { method: 'POST', body: f })
   },
   deleteCapturePhoto: (id: number, pid: number) => req(`/survey/captures/${id}/photos/${pid}`, json('DELETE')),
+  analystChat: (question: string, history: ChatTurn[]) => req<ChatResponse>('/analyst/chat', json('POST', { question, history })),
 }

@@ -223,3 +223,7 @@ export type PropertyCatchment = {
   reused: boolean; reused_from_study_id: number | null; reuse_reason: string | null; data_quality_flags: string[]
   insights?: Insights | null; evidence_photos?: EvidencePhoto[]; insight_versions?: number[]; survey_age_days?: number
 }
+
+export type ChatSource = { type: 'area_report' | 'property' | 'catchment' | 'external'; id: number; label: string; href: string | null }
+export type ChatTurn = { role: 'user' | 'assistant'; content: string }
+export type ChatResponse = { answer: string; sources: ChatSource[]; tools_used: { tool: string; args: Record<string, unknown> }[]; mode: 'llm' | 'template' | 'help' | 'busy' | 'unavailable' }

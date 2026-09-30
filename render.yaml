@@ -26,7 +26,13 @@ services:
         sync: false
       - key: CORS_ORIGINS      # the exact Vercel production URL, e.g. https://your-project.vercel.app
         sync: false
-      - key: LLM_PROVIDER      # optional: anthropic | openai | none
-        value: none
+      - key: LLM_PROVIDER      # optional: anthropic | openai (any OpenAI-compatible API, e.g. Gemini) | none
+        sync: false
       - key: LLM_API_KEY       # optional
+        sync: false
+      - key: LLM_BASE_URL      # optional: e.g. https://generativelanguage.googleapis.com/v1beta/openai (Gemini)
+        sync: false
+      - key: LLM_MODEL         # optional: a current model name from your provider
+        sync: false
+      - key: LLM_FALLBACK_MODELS  # optional: comma separated models to try when the first is rate-limited
         sync: false

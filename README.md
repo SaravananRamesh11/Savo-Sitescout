@@ -107,8 +107,8 @@ computed:
    The report records which one was used (`llm` or `template`), visible in the UI.
 
 Provider is config-only (`LLM_PROVIDER=anthropic|openai|none`, any OpenAI-compatible base URL for Groq, Gemini,
-Ollama). **No key is configured in this repo**, so the shipped demo runs on the template path; the LLM path
-is covered by unit tests using a stubbed client.
+Ollama). **No key is stored in this repo** (keys live in `.env` locally and in the Render dashboard); without a key the
+app runs on the template path, and the LLM path is covered by unit tests using a stubbed client.
 
 ## Data sources
 * **OpenStreetMap** via the **Overpass API**: shops, offices, schools, colleges, hospitals, clinics, banks,
@@ -380,6 +380,64 @@ reason and evaluation version are stored in the audit history as in M2.
 * The capture list supports deleting and re-adding an observation; an edit screen is not built (the API supports edits).
 * Integration tests use the real remote database and take several minutes.
 
+---
+
+# Bonus: Conversational analyst (BD Manager)
+
+An **Ask** tab where the BD Manager asks questions in plain English about existing areas (M1), properties (M2) and
+catchment surveys (M3): "Compare Velachery and Mylapore", "Show properties in Velachery", "Which property has the highest
+M2 score?", "What did the ground survey find around property 80?", "Which areas have completed catchment studies?".
+It is **read-only**: it never starts an analysis, an evaluation or a study.
+
+**How it stays honest** (`services/analyst.py`, `services/analyst_tools.py`, `api/routes/analyst.py`):
+1. **Route:** the LLM only picks up to 3 of thirteen fixed tools and their arguments as JSON. Nine read the saved data
+   (`search_areas`, `get_area_report`, `compare_areas`, `search_properties`, `get_property`, `get_property_evaluation`,
+   `get_catchment`, `search_catchments`, `compare_properties`); four reach outside it (`list_chennai_areas`,
+   `lookup_place`, `place_demographics`, `nearby_amenities`, see *External data* below). Names, argument types, enums and list sizes are validated; anything
+   unknown is refused.
+2. **Query:** the backend runs the tools read-only, reusing the existing M1/M2/M3 functions and tables. There is no
+   analyst database and no copied data. Comparisons, rankings, gaps and "highest score" are computed in Python, not by
+   the model. Anything missing returns "Insufficient data."
+3. **Explain:** the LLM writes the answer from those verified results only. The **same grounding check as M1/M2** rejects
+   any number that is not in the results; after one retry the answer is built by a fixed template from the same data.
+4. **Permissions:** the endpoint is BD Manager only (`403` for every other role). Tools apply the manager's view of the
+   data (drafts still being captured are hidden; catchment results carry no work-unit detail, which is Survey Manager
+   only). The answer lists **sources** (area report, property, catchment study) that open the matching page.
+
+**External data** (`services/analyst_external.py`) lets it answer what the saved data cannot ("what areas are in Chennai?",
+"where is Perungudi?", "how many supermarkets are near Adyar?", "population around Tambaram?"):
+
+| Source | Used for | Notes |
+|---|---|---|
+| OGD India pincode boundaries | Chennai Corporation zones, suburb areas, pincodes | bundled file, no network |
+| Nominatim (OpenStreetMap) | where a place is; whether it is inside an analysed area | live, Chennai-bounded, 1 request/s policy |
+| Overpass (OpenStreetMap) | counts of supermarkets, schools, hospitals, clinics, banks, bus stops within 300-2000 m | small count query, cached 6 h; counts are a minimum because OSM can be incomplete |
+| Bundled locality table | population density, households, growth | **an ESTIMATE, always labelled "not Census"** |
+
+Comparing an analysed area with one that has no report gives a *partial* comparison (report facts for one, estimate for the
+other, nothing ranked, and a note to analyse the missing area). **Not connected:** Census of India ward tables, the Tamil Nadu OGD
+portal and Bhuvan expose no open API this app can call reliably, so they are not faked; the assistant says so. Every external
+answer carries a source chip that opens the source in a new tab.
+
+No conversation is stored: the browser sends the last few turns with each question. Requests are limited to 20 a minute
+per persona to protect a free LLM key.
+
+**Setting it up (Gemini free tier example)** in `backend/.env` locally and in the Render dashboard (values are never
+committed):
+```
+LLM_PROVIDER=openai
+LLM_API_KEY=<your key>
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+LLM_MODEL=<a current Flash model from AI Studio, e.g. gemini-3.5-flash>
+LLM_FALLBACK_MODELS=<optional, comma separated, tried in order when the first is rate-limited or overloaded, e.g. gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-3.5-flash>
+```
+Free tiers limit requests **per model per day**, so a fallback list stretches the quota. Model names change: list what your
+key can use in AI Studio. For the Gemini endpoint the client sends `reasoning_effort: none` (Gemini's hidden reasoning
+otherwise eats the output budget); override with `LLM_REASONING_EFFORT`. When the provider is rate-limiting, the chat
+says so ("busy, try again in about a minute") instead of failing.
+
+**Known limits:** one routing round (a tool's result cannot feed another tool), so "compare the top two properties" needs
+ids or a two-step conversation; area names are matched by text, so an ambiguous name returns candidates to choose from.
 
 ---
 
@@ -399,7 +457,7 @@ and wait a minute before a demo).
    `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, health check `/api/health`.
 2. Enter these environment variables in the Render dashboard (never in a file): `db_url`, `R2_ACCOUNT_ID`,
    `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `SAVOMART_CRON_TOKEN`, and optionally `LLM_PROVIDER` /
-   `LLM_API_KEY`.
+   `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_FALLBACK_MODELS` (needed for the conversational analyst).
 3. Let Render reach the database (allowed-IP settings on your database provider).
 4. Open `https://<service>.onrender.com/api/health`: it should say `"database": true`.
 
