@@ -1,17 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from sqlalchemy import text
 
-from app.api.routes import analyst, areas, assignments, catchments, geo, properties, reports, survey
+from app.api.routes import analyst, areas, assignments, catchments, geo, opportunities, properties, reports, survey
 from app.core.personas import PERSONAS
 from app.core import config
 from app.core.db import engine, warm_pool
 from app.models.db_models import Base
+import app.models.opportunity_models  # noqa: F401
 import app.models.property_models  # noqa: F401
 from app.models.property_models import ensure_m2_schema
 from app.models.survey_models import ensure_m3_schema
 
 app = FastAPI(title="Savo SiteScout API", version="0.1.0")
+app.add_middleware(GZipMiddleware, minimum_size=1000)  # the city-wide opportunity map is a few hundred KB of JSON
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?",
                    allow_methods=["*"], allow_headers=["*"])  # includes X-Persona
 
@@ -53,3 +56,4 @@ app.include_router(geo.router, prefix="/api")
 app.include_router(catchments.router, prefix="/api")
 app.include_router(survey.router, prefix="/api")
 app.include_router(analyst.router, prefix="/api")
+app.include_router(opportunities.router, prefix="/api")

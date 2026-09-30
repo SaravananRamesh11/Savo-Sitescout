@@ -4,6 +4,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from sqlalchemy import text
 from app.core.db import engine
 from app.models.db_models import Base
+import app.models.opportunity_models  # noqa: F401  registers the Opportunity Finder tables on the same Base
 import app.models.property_models  # noqa: F401  registers the M2 tables on the same Base
 
 with engine.begin() as c:

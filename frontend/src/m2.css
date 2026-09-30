@@ -156,3 +156,39 @@ select.input { appearance: auto; }
 .suggest-box .hint { margin: 0; }
 .suggest .pill { font-weight: 600; font-size: 14px; }
 @media (min-width: 900px) { .chat-foot { padding-left: 24px; padding-right: 24px; } .chat-foot .ask-bar { max-width: 1072px; margin: 0 auto; } }
+
+/* ---------- Opportunity Finder ---------- */
+.lbl-short { display: inline; } .lbl-long { display: none; }
+@media (min-width: 640px) { .lbl-short { display: none; } .lbl-long { display: inline; } }
+.opp-run { display: grid; gap: 10px; }
+.opp-map { height: 58dvh; min-height: 340px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); margin-top: 10px; }
+.opp-map-inner { height: 100%; width: 100%; }
+.opp-pin { width: 28px; height: 28px; border-radius: 50%; background: var(--yellow); color: var(--purple-dark); border: 3px solid var(--purple); display: grid; place-items: center; font-weight: 800; font-size: 13px; }
+.opp-pin.sm { display: inline-grid; width: 20px; height: 20px; font-size: 11px; border-width: 2px; vertical-align: middle; margin-right: 4px; }
+.opp-legend { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--ink-2); }
+.opp-legend i { flex: 1; height: 10px; border-radius: 5px; border: 1px solid var(--line); }
+.opp-legend2 { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 12px; color: var(--ink-2); }
+.opp-legend2 .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+.opp-legend2 .dot.store { background: var(--purple); border: 2px solid var(--yellow); box-sizing: border-box; width: 12px; height: 12px; }
+.opp-legend2 .dot.grey { background: #b9b3bd; opacity: .6; }
+.opp-row { cursor: pointer; }
+.opp-row:focus-visible { outline: 3px solid var(--purple-tint-2); outline-offset: 2px; border-radius: 8px; }
+.opp-assume summary, .opp-src summary { font-weight: 700; cursor: pointer; min-height: 36px; display: flex; align-items: center; }
+.opp-assume p, .opp-src p { font-size: 14px; color: var(--ink-2); margin: 6px 0; }
+.opp-head { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
+.opp-score { flex: none; text-align: center; background: var(--purple); color: #fff; border-radius: 14px; padding: 8px 14px; }
+.opp-score b { display: block; font-size: 26px; line-height: 1.1; }
+.opp-score small { font-size: 11px; opacity: .85; }
+.opp-h { font-size: 15px; margin: 16px 0 4px; color: var(--purple-dark); }
+.opp-list { margin: 4px 0; padding-left: 18px; font-size: 14px; color: var(--ink-2); line-height: 1.45; }
+.opp-factor { margin: 8px 0; font-size: 14px; }
+.opp-factor > div:first-child { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.opp-factor.hl { background: var(--purple-tint); border-radius: 10px; padding: 8px 10px; }
+.opp-factor small { display: block; }
+.opp-dl { margin: 4px 0; display: grid; gap: 6px; }
+.opp-dl > div { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.opp-dl dt { color: var(--ink-2); } .opp-dl dd { margin: 0; font-weight: 700; text-align: right; }
+.opp-actions { display: grid; gap: 8px; margin-top: 16px; }
+.opp-confirm { margin-top: 16px; background: var(--warn-bg); color: var(--warn-ink); border-radius: 12px; padding: 12px; }
+.opp-confirm p { margin: 0 0 8px; font-size: 14px; }
+@media (min-width: 900px) { .opp-map { height: calc(100dvh - 300px); min-height: 420px; } }

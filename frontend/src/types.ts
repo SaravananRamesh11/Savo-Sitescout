@@ -227,3 +227,29 @@ export type PropertyCatchment = {
 export type ChatSource = { type: 'area_report' | 'property' | 'catchment' | 'external'; id: number; label: string; href: string | null }
 export type ChatTurn = { role: 'user' | 'assistant'; content: string }
 export type ChatResponse = { answer: string; sources: ChatSource[]; tools_used: { tool: string; args: Record<string, unknown> }[]; mode: 'llm' | 'template' | 'help' | 'busy' | 'unavailable' }
+
+// ---- Opportunity Finder
+export type OppCell = { id: string; p: number[][]; o: number | null; c: number; w: string | null }
+export type OppFactor = { key: string; label: string; weight: number; points: number; raw: number | string | null; unit: string; norm: number; explanation: string }
+export type OppStore = { name: string; lat: number; lon: number; distance_m: number; road_distance_m?: number; road_duration_s?: number }
+export type OppSignal = { kind: string; ref: number; units: number; age_days: number; share: number }
+export type OppDetail = {
+  cell_id: string; ranked: boolean; rank?: number | null; lat: number; lon: number
+  reason?: string; reason_text?: string
+  locality?: string; opportunity_score?: number; m1_score?: number; rating?: string; w_unscouted?: number
+  breakdown?: OppFactor[]; positives?: string[]; risks?: string[]; flags?: string[]
+  features?: Record<string, unknown>; nearest_stores?: OppStore[]
+  scouting?: { coverage: number; summary: string; signals: OppSignal[] }
+  map_data?: { status: string | null; fetched_at: string | null }
+}
+export type OppStatus = {
+  run_id: number; status: 'queued' | 'running' | 'completed' | 'failed'; error: string | null
+  progress: { phase: string; done: number; total: number; message: string }; created_at: string; completed_at: string | null
+}
+export type OppSource = { source: string; url: string; mocked: boolean; fetched_at: string | null; oldest_tile_fetched_at?: string | null; note?: string }
+export type OppRun = OppStatus & {
+  config: { w_unscouted: number; coverage_full_units: number; recent_full_days: number; expire_days: number; top_n: number; [k: string]: unknown }
+  summary: { cells_total: number; cells_ranked: number; unranked_by_reason: Record<string, number>; tiles_total: number; tiles_missing: number
+    tiles_stale: number; tiles_live: number; tiles_from_cache: number; stores: { name: string; lat: number; lon: number }[]; score_range: [number, number] | null }
+  top: (OppDetail & { rank: number })[]; data_quality_flags: string[]; data_sources: OppSource[]; reasons: Record<string, string>; cells: OppCell[]
+}

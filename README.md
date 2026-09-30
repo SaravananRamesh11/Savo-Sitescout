@@ -441,6 +441,58 @@ ids or a two-step conversation; area names are matched by text, so an ambiguous 
 
 ---
 
+# Bonus: Opportunity Finder (BD Manager)
+
+A separate **Opportunity Finder** page (bottom-nav "Finder", route `#/opportunities`) with its own map. It answers *"where should the
+BD team scout next?"* without any area input: it scores every 500 m square of Chennai and lists the best places that have had little
+or no scouting. The Analyse Area flow, M1 scoring, M2 and M3 are unchanged. It is deterministic backend code: **no LLM, no agent**.
+
+**Flow:** `Find Opportunities` starts a background run (progress bar, polled like a report) -> Chennai is cut into 6 km tiles ->
+per-tile map data (cached) -> per-cell features -> Savomart distances -> scouting coverage -> opportunity score -> ranking ->
+top 10 with details. Tap a square or a list row for the breakdown; **Analyse this pocket** (with a confirm step) runs the normal
+Analyse Area report on the 3 x 3 cells around it. Nothing else is created: no property, assignment or catchment study.
+
+**What is reused from M1 (nothing duplicated):** the 500 m UTM-44N grid (`grid.py`), `features.compute_cell_features` and
+`aggregate_area`, `scoring.score_features` with its ten factors and weights untouched, `hotspots.pick_hotspots` (spread top
+results) / `why_bullets` / `nearest_locality`, `overpass_client`, `savomart_client` and its fallbacks, `demographics`, and the
+same data-quality flag names.
+
+**Opportunity score** (`services/opportunity_score.py`): `opportunity = (1 - W) x M1_score + W x 100 x (1 - scouting_coverage)`.
+The ten M1 factors are rescaled to `(1 - W)` of the total and one new factor, *unscouted opportunity*, is worth `W`; weights still sum
+to 100. `W` defaults to **0.20** (`OPP_W_UNSCOUTED`); it is an assumption to calibrate, not a business fact, and `W = 0` gives exactly
+the M1 score. Every run stores the assumptions it used.
+
+**Scouting coverage** (`services/opportunity_coverage.py`, 0 to 1, all constants in `core/opportunity_constants.py`): evidence from
+existing data, read in three queries: a property in the cell (1.0 unit, 0.5 if it has no completed evaluation), an open scouting
+assignment on that hotspot cell (0.5), a catchment study covering the cell (3.0 completed, 1.5 requested or in progress). Signals fade
+with age (full for 90 days, zero at 365). Point signals count fully in their own cell and 50% in the 8 neighbours; a study counts in
+every cell it covers. `coverage = min(1, units / 3)`. So a lone property lowers a square's priority a little (it is **not** excluded)
+and a completed catchment study nearly fills it.
+
+**Data and freshness:** Overpass in 6 km tiles (one padded request per tile, never per cell; 42 tiles for the default city bounds);
+the cache (`opportunity_tiles`) keeps the derived per-cell features, place names, source and fetched time for 7 days
+(`OPPORTUNITY_CACHE_HOURS`), not the raw road geometry. If Overpass fails a stale cache is used and flagged, otherwise the tile is
+reported missing and its cells are **not ranked**; nothing is mocked. A cell is only ranked if it has mapped roads or places (so
+water and open land are never scored on an estimate) and lies within 3 km of a locality in the demographic table. Savomart distances
+are recomputed every run from the current stores. Locality names come from OSM place nodes (no Nominatim for bulk work). OSRM (public
+demo server) gives road distance and time to the nearest store for the **top 10 only**; scoring keeps M1's straight-line measure.
+**Population is an estimate** (bundled locality table, Census-2011 order of magnitude), never presented as current Census data;
+there is no Census API in this project.
+
+**Speed:** the first city-wide run reads about 40 tiles from Overpass one at a time (about 8 to 25 minutes depending on Overpass).
+Later runs reuse the cache (about a minute, mostly database round trips). Pre-fill it once, before a demo:
+`python backend/scripts/warm_opportunity_cache.py` (the cache lives in the shared database, so this also warms the deployed app).
+Re-running retries any tile that failed.
+
+**API** (BD Manager only): `POST /api/opportunities/runs` (202; a second click joins the running one), `GET /api/opportunities/runs/latest`,
+`GET /api/opportunities/runs/{id}` (+ `/status`, `/cells/{cell_id}`). **New tables** (additive, created on startup): `opportunity_tiles`,
+`opportunity_runs` (latest 3 runs kept).
+
+**Known limits:** population is estimated; OSM can be incomplete; the coverage and `W` defaults are starting assumptions; a tile can
+fail on a busy Overpass (re-run to retry); the local Savomart store list is a sample snapshot unless `SAVOMART_CRON_TOKEN` is set.
+
+---
+
 # Deploying (Vercel frontend + Render backend)
 
 The frontend is static, so it goes on **Vercel**. The backend must run on an always-on server, because analyses and

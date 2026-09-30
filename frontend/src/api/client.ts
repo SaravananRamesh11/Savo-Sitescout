@@ -1,5 +1,5 @@
 import type {
-  Area, Assignment, Capture, CaptureType, ChatResponse, ChatTurn, Compare, Duplicate, Evaluation, FieldError, Insights, Persona, PropertyDetail,
+  Area, Assignment, Capture, CaptureType, ChatResponse, ChatTurn, Compare, Duplicate, OppDetail, OppRun, OppStatus, Evaluation, FieldError, Insights, Persona, PropertyDetail,
   PropertySummary, ReportDetail, ReportStatus, ReportSummary, SplitPreview, Stage, Store, Study, StudyRow, UnitDetail, WorkUnit,
 } from '../types'
 
@@ -149,4 +149,10 @@ export const api = {
   },
   deleteCapturePhoto: (id: number, pid: number) => req(`/survey/captures/${id}/photos/${pid}`, json('DELETE')),
   analystChat: (question: string, history: ChatTurn[]) => req<ChatResponse>('/analyst/chat', json('POST', { question, history })),
+  // Opportunity Finder
+  oppLatest: () => req<{ active: OppStatus | null; run: OppRun | null }>('/opportunities/runs/latest'),
+  oppStart: () => req<{ run_id: number; status: string; already_running: boolean }>('/opportunities/runs', json('POST')),
+  oppStatus: (id: number) => req<OppStatus>(`/opportunities/runs/${id}/status`),
+  oppRun: (id: number) => req<OppRun>(`/opportunities/runs/${id}`),
+  oppCell: (id: number, cell: string) => req<OppDetail>(`/opportunities/runs/${id}/cells/${cell}`),
 }
