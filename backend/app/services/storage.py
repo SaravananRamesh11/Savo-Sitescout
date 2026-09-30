@@ -77,6 +77,16 @@ def url_for(key: str) -> str:
     return f"/api/photos/local/{key}"
 
 
+def read(key: str) -> bytes:
+    """Bytes of a stored photo (R2 or the local fallback). Used to embed photos in the Decision Pack PDF."""
+    if r2_configured():
+        try:
+            return _r2().get_object(Bucket=config.R2_BUCKET, Key=key)["Body"].read()
+        except Exception as exc:  # noqa: BLE001 - never leak credentials in the message
+            raise StorageError(f"Photo storage read failed ({type(exc).__name__})") from None
+    return read_local(key)[0]
+
+
 def read_local(key: str) -> tuple[bytes, str]:
     path = (LOCAL_DIR / key).resolve()
     if LOCAL_DIR.resolve() not in path.parents or not path.exists():

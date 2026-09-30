@@ -13,3 +13,5 @@ langgraph
 pytest
 boto3
 python-multipart
+reportlab
+pypdf

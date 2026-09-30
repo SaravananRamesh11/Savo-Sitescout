@@ -361,6 +361,20 @@ def get_property(pid: int, db: Session = Depends(get_db), persona: dict = Depend
     return detail_json(db, _get(db, pid, persona), persona)
 
 
+@router.get("/properties/{pid}/decision-pack")
+def decision_pack(pid: int, db: Session = Depends(get_db), persona: dict = Depends(current_persona)):
+    """PDF case for leadership, built on the fly from existing M1/M2/M3 data. Read-only; APPROVED properties only."""
+    require_roles(persona, "bd_manager")
+    p = _get(db, pid, persona)
+    if p.pipeline_stage != "APPROVED":
+        raise HTTPException(409, "A Decision Pack can only be generated once the property is approved.")
+    from app.services import decision_pack as dp
+
+    pdf = dp.build_pack(db, p, detail_json(db, p, persona))
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="decision-pack-{pid}.pdf"', "Cache-Control": "no-store"})
+
+
 @router.post("/properties/duplicate-check")
 def duplicate_check(body: DupCheckIn, db: Session = Depends(get_db), persona: dict = Depends(current_persona)):
     require_roles(persona, "bd_executive", "bd_manager")

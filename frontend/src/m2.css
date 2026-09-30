@@ -192,3 +192,5 @@ select.input { appearance: auto; }
 .opp-confirm { margin-top: 16px; background: var(--warn-bg); color: var(--warn-ink); border-radius: 12px; padding: 12px; }
 .opp-confirm p { margin: 0 0 8px; font-size: 14px; }
 @media (min-width: 900px) { .opp-map { height: calc(100dvh - 300px); min-height: 420px; } }
+
+a.btn { text-decoration: none; }

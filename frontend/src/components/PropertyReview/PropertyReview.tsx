@@ -7,6 +7,7 @@ import type { EvalFactor, PropertyDetail, Stage } from '../../types'
 import { FLAG_TEXT, fmtTime } from '../common/format'
 import { Fact, Field, inr, num, pct, REC_LABEL, StageChip, STAGE_LABEL } from '../common/ui'
 import CatchmentPanel from './CatchmentPanel'
+import DecisionPackButton from './DecisionPackButton'
 
 const pinIcon = L.divIcon({ className: '', html: '<div class="drop-pin"><span></span></div>', iconSize: [34, 42], iconAnchor: [17, 40] })
 const FLAG_EXTRA: Record<string, string> = {
@@ -206,6 +207,7 @@ export default function PropertyReview({ id, onBack, onEdit }: { id: number; onB
                     )}
                   </div>
                 )}
+                {isManager && p.pipeline_stage === 'APPROVED' && <DecisionPackButton propertyId={p.property_id} />}
                 {(inFinal || p.final_decision || p.pipeline_stage === 'CATCHMENT_COMPLETED') && (
                   <div className="eval-compare">
                     <div>

@@ -1,13 +1,25 @@
-# Savo SiteScout: Chennai expansion intelligence (M1 Area Intelligence, M2 Property Scouting, M3 Ground Catchment Survey)
+# Savo SiteScout: Chennai expansion intelligence
 
-A BD Manager picks any part of Chennai (locality name, pincode, or grid cells on a map), runs a **virtual
-analysis**, and gets a saved, timestamped **Area Fitness Report**: what the area is like, a 0-100 fit rating,
-the reasoning behind it, and the 5 places to scout first. Built mobile-first (360 px and up) in the Savomart
-brand colours (`#782B90` purple, `#FFF200` yellow).
+Where should Savomart open its next store in Chennai, and is a particular building worth it? Savo SiteScout takes a
+Business Development team from a city-wide question to a decision, built mobile-first (360 px and up) in the Savomart brand
+colours (`#782B90` purple, `#FFF200` yellow):
 
-> Status: **Milestones 1, 2 and 3 complete.** See the Milestone 2 and Milestone 3 sections below, and `m3_tweaks.md`
-> for every deviation from the M3 spec.
-> The `areas` table is the anchor M2 and M3 point to.
+* **M1 Area Intelligence:** a BD Manager picks any part of Chennai (locality, pincode, or grid cells on a map), runs a
+  **virtual analysis** and gets a saved, timestamped **Area Fitness Report**: a 0-100 fit rating, the reasoning behind it
+  and the 5 places to scout first.
+* **M2 Property scouting and evaluation:** a BD Executive captures a property on a phone (GPS pin, details, photos) and a
+  deterministic, versioned evaluation is produced for the manager.
+* **M3 Ground catchment survey:** Survey Executives walk the catchment and record what is really there; the manager makes
+  the final decision with the M2 evaluation and the survey side by side.
+* **Bonus: Ask** (a read-only conversational analyst), **Opportunity Finder** (a city-wide scan for high-potential,
+  unscouted places) and **Decision Pack** (a leadership PDF of an approved property's whole case).
+
+**Live site:** https://savo-sitescout.vercel.app (backend health: https://savo-sitescout-api-ix6x.onrender.com/api/health).
+The backend is on Render's free tier and sleeps when idle, so the first request after a pause can take about a minute.
+**Demo video:** see the *Demo video* section below.
+
+> Status: **Milestones 1, 2 and 3 complete, all three bonus features built, deployed.** See the milestone sections below, the two
+> bonus sections, and `m3_tweaks.md` for every deviation from the M3 spec. The `areas` table is the anchor M2 and M3 point to.
 
 ## Run it locally
 
@@ -22,7 +34,7 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # Window
 python scripts/init_db.py                  # PostGIS + tables (also runs at API startup)
 python scripts/ingest_pincodes.py          # ~2.5 min, rebuilds data/chennai_pincodes.geojson (already committed)
 python -m uvicorn app.main:app --port 8000
-python scripts/seed_demo.py                # demo scouting assignments from M1 hotspots (--reset wipes M2 + M3 tables)
+python scripts/seed_demo.py                # demo scouting assignments from M1 hotspots (--reset DELETES all M2 + M3 data: never run it on real data)
 python -m pytest -q                        # unit tests; integration tests use the real DB and take minutes
 
 # frontend (new terminal)
@@ -31,11 +43,50 @@ cd frontend && npm install && npm run dev  # http://localhost:5173 (proxies /api
 
 Open the app on a phone on the same Wi-Fi via the Vite "Network" URL.
 
-**Roles:** a role switcher (top-right) has the four personas: BD Manager, BD Executive, Survey Manager, Survey
-Executive. No login. In M1 only the **BD Manager** screens are built; the other three show what they will do in
-M2/M3.
+### Configuration (variable names only; real values go in `.env` locally and in the Render dashboard, never in git)
+See `.env.example` for every name and comment. `db_url` is required. Optional groups: `SAVOMART_CRON_TOKEN` (real store list; without
+it a labelled sample snapshot is used), `R2_*` (private photo bucket; without it photos go to a local folder), `LLM_*` (see
+*Where AI is used*; without a key every explanation falls back to a fixed template), `OPP_*` / `OPPORTUNITY_*` / `OSRM_URL`
+(Opportunity Finder tuning). The frontend reads `VITE_API_BASE` (empty in development, where Vite proxies `/api`).
 
-## Using it (demo path)
+To make the first Opportunity Finder search quick, pre-fill its map cache once (about 8 to 25 minutes, needs internet):
+`python scripts/warm_opportunity_cache.py`. The cache lives in the shared database, so this also warms the deployed app.
+
+### Tests
+`python -m pytest -q` in `backend/` (131 tests are collected). The pure unit tests (scoring, grid, features, hotspots, grounding,
+the analyst's tool validation, the Opportunity Finder maths) need nothing else and run in seconds. The integration tests
+(properties, catchments, the analyst, the Opportunity Finder) use the **real database** from `db_url` with the external services
+(Overpass, the Stores API, OSRM, the LLM) faked; they create and delete their own rows and take several minutes because the
+database is remote. **One caveat:** `tests/test_catchment_flow.py::test_full_flow_request_split_capture_complete_final_review`
+assumes no survey work units exist for the two survey executives, so it fails against a database that already holds real M3
+survey data (it did once real surveys were entered) and passes on an empty survey table.
+
+## Roles and tabs (at a glance)
+Six seeded personas, chosen with the switcher (top right). An `X-Persona` header carries the choice and the API enforces who may
+do what; there is no login.
+
+| Persona | Role | What they do | Tabs |
+|---|---|---|---|
+| Asha | BD Manager | analyses areas, assigns hotspots, reviews properties, requests catchment studies, makes the final decision and generates its Decision Pack, asks questions, finds opportunities | Analyse, Reports, Properties, Ask, Finder |
+| Ravi, Divya | BD Executive | capture properties for their assignments | Assignments, My properties |
+| Meena | Survey Manager | splits a catchment into work units, assigns them, reviews and completes the study | Studies |
+| Karthik, Lakshmi | Survey Executive | capture ground observations inside their own units | My units |
+
+## Using it (whole-product demo path)
+1. As **Asha**, *Analyse* tab: pick a locality ("Velachery"), a pincode (600042) or map cells, **Run virtual analysis**, and read the
+   report (rating, reasons, 5 hotspots).
+2. Still as Asha, on a hotspot: **Assign to executive** (say Divya).
+3. As **Divya** (phone): *Assignments* -> **Add property** (7 steps, GPS pin, photos) -> **Submit**. The evaluation runs in the
+   background.
+4. As **Asha**, *Properties*: open it, read the evaluation, then **Request catchment study** (one click).
+5. As **Meena**, *Studies*: preview the split, **Confirm and assign**. As **Karthik** or **Lakshmi**, *My units*: capture
+   observations. As Meena: review the insights and send them on.
+6. As **Asha**: **Start final review** (original and updated evaluation side by side, plus the survey), then **Approve** or **Reject**
+   with a reason. On an approved property, **Generate Decision Pack** gives the leadership PDF.
+7. As **Asha**, anywhere: *Reports* to compare 2 to 4 saved reports, **Ask** to question the data in plain English, **Finder** to see
+   the best unscouted places across the whole city.
+
+Each milestone section below has its own detailed walkthrough. M1 in detail:
 1. **Analyse** tab: choose *Locality* ("Velachery"), *Pincode* (600042), or *Map cells* (zoom in, tap cells that
    touch edge to edge, max 100). Savomart stores appear as yellow pins.
 2. **Run virtual analysis.** A step-by-step progress screen shows each of the 9 pipeline stages. If one fails it
@@ -47,13 +98,19 @@ M2/M3.
 ## Architecture
 
 ```
-React (Vite, Leaflet)  --/api-->  FastAPI  --BackgroundTask-->  LangGraph (9 sequential nodes)
-                                     |                              |
-                                 PostGIS  <-------------------------+
-                                     ^        Overpass (OSM) | Nominatim | Savomart Stores API | LLM (optional)
+Browser: React + Vite + Leaflet (Vercel)
+      |  /api  (X-Persona header)
+      v
+FastAPI (Render) --- BackgroundTasks:  M1 report (LangGraph, 9 nodes) | M2 evaluation | Opportunity Finder run
+      |        \
+      v         +--> Cloudflare R2  (property and survey photos, short-lived presigned URLs)
+PostGIS / Postgres (18 tables)
+      ^
+      +---- Overpass (OSM) | Nominatim | OSRM | Savomart Stores API | LLM (optional, OpenAI-compatible or Anthropic)
 ```
 
-Agent nodes (`backend/app/agent/nodes/pipeline.py`), each persisting progress to the report row:
+Long work never blocks a request: the UI starts it, then polls a status endpoint. The M1 report pipeline's nodes
+(`backend/app/agent/nodes/pipeline.py`) each persist progress to the report row:
 `resolve_area -> get_osm_data -> get_demographics -> get_savomart -> calculate_features -> calculate_score ->
 identify_hotspots -> generate_report -> save_report`.
 
@@ -65,9 +122,47 @@ identify_hotspots -> generate_report -> save_report`.
   records a `data_quality_flag` shown in the UI.
 
 ## Data model (PostGIS)
+18 tables in total, created on startup with `Base.metadata.create_all` (no migration tool): five for M1 (below), six for M2 (see
+Milestone 2), five for M3 (see Milestone 3) and two for the Opportunity Finder (`opportunity_tiles`, `opportunity_runs`; see its
+section).
+
+```mermaid
+erDiagram
+    areas ||--o{ area_reports : analysed
+    areas ||--o{ grid_cells : contains
+    area_reports ||--o{ grid_cells : scores
+    areas ||--o{ external_data_cache : caches
+    areas ||--o{ scouting_assignments : scoped_to
+    area_reports |o--o{ scouting_assignments : source_report
+    areas ||--o{ properties : located_in
+    scouting_assignments |o--o{ properties : fulfils
+    properties ||--o{ property_photos : has
+    properties ||--o{ property_field_competitors : notes
+    properties ||--o{ property_evaluations : versions
+    properties ||--o{ property_status_history : audit
+    properties |o--o{ catchment_studies : studied_by
+    areas |o--o{ catchment_studies : or_area_study
+    catchment_studies |o--o{ catchment_studies : reuses
+    catchment_studies ||--o{ survey_work_units : split_into
+    survey_work_units ||--o{ survey_captures : records
+    survey_captures ||--o{ survey_capture_photos : evidence
+    catchment_studies ||--o{ catchment_insights : versions
+    savomart_stores
+    opportunity_tiles
+    opportunity_runs
+```
+
+How to read it: **M1** = `areas`, `area_reports`, `grid_cells` (plus `savomart_stores` and `external_data_cache` as data
+support); **M2** = `scouting_assignments`, `properties` and its four child tables; **M3** = `catchment_studies` and everything under it
+(a study belongs to either one property or one area, and a reused study points at the study it reuses); **Opportunity Finder** =
+`opportunity_tiles`, `opportunity_runs` (no foreign keys: a map cache and saved run results). `savomart_stores`, `opportunity_tiles`
+and `opportunity_runs` stand alone. The Decision Pack and Ask add no tables.
+
+The M1 tables:
+
 | table | purpose |
 |---|---|
-| `areas` | resolved area identity (type, input, polygon, km², boundary quality). Caches geocoding and is what M2/M3 will foreign-key to |
+| `areas` | resolved area identity (type, input, polygon, km², boundary quality). Caches geocoding and is what M2 and M3 foreign-key to |
 | `area_reports` | one row per analysis run: status, steps, score, rating, breakdown, profile, flags, data sources + timestamps, explanation |
 | `grid_cells` | per-report 500 m cells: polygon, centroid, score, breakdown, features, hotspot rank, locality, nearest road |
 | `savomart_stores` | normalised snapshot of the Stores API (reproducible reports, PostGIS distance queries, survives API outages) |
@@ -97,18 +192,25 @@ cells <40 % inside the area. Locality = nearest OSM `place` node; nearest named 
 already downloaded (no reverse-geocoding calls).
 
 ## Where AI is used, and how it is kept honest
-The LLM is used **only** in `generate_report`, and only to phrase an explanation of numbers the backend already
-computed:
+The LLM is used in three places, always to **phrase** or **route**, never to calculate. All scoring, ranking, comparison and
+selection is deterministic backend code, and the Opportunity Finder uses no LLM at all.
+1. **M1 report explanation** (`generate_report`): phrases numbers the backend already computed.
+2. **M2 evaluation explanation:** the same pattern for a property.
+3. **Ask (the analyst):** the model only chooses which of a fixed set of read-only tools to call and then explains their verified
+   results (see the *Bonus: Conversational analyst* section).
+
+The same protection applies to all three:
 1. The prompt contains a `FACTS` JSON of verified values and strict rules (no outside knowledge, no new numbers).
-2. The model must return structured JSON referencing real factor keys and real hotspot cell ids.
+2. Where structure matters, the model must return JSON referencing real factor keys and real hotspot cell ids.
 3. **Grounding check** (`services/grounding.py`): every number in the text must appear in FACTS (allowing
    rounding and m<->km). Unknown factor/cell ids are rejected too.
 4. One retry with the rejection reason, then a deterministic **template explanation** built from the same facts.
-   The report records which one was used (`llm` or `template`), visible in the UI.
+   Reports and evaluations record which one was used (`llm` or `template`), visible in the UI.
 
-Provider is config-only (`LLM_PROVIDER=anthropic|openai|none`, any OpenAI-compatible base URL for Groq, Gemini,
-Ollama). **No key is stored in this repo** (keys live in `.env` locally and in the Render dashboard); without a key the
-app runs on the template path, and the LLM path is covered by unit tests using a stubbed client.
+Provider is config-only (`LLM_PROVIDER=anthropic|openai|none`; `openai` means any OpenAI-compatible endpoint, such as Gemini,
+Groq or Ollama, chosen with `LLM_BASE_URL`). It was developed and tested against Gemini's free tier through that endpoint (setup in
+the *Bonus: Conversational analyst* section). **No key is stored in this repo** (keys live in `.env` locally and in the Render dashboard); without a key
+everything still works on the template path, and the LLM path is covered by unit tests using a stubbed client.
 
 ## Data sources
 * **OpenStreetMap** via the **Overpass API**: shops, offices, schools, colleges, hospitals, clinics, banks,
@@ -124,6 +226,11 @@ app runs on the template path, and the LLM path is covered by unit tests using a
   `backend/app/mock_data/demographics_chennai.json` holds hand-calibrated locality estimates (Census-2011 order of
   magnitude), blended by inverse-distance weighting. Every report is flagged `population_mocked` and the UI says
   "estimate, not official". Growth rates are illustrative.
+* **OSRM** (public demo server): road distance and time from an Opportunity Finder top result to its nearest Savomart store
+  (top 10 only; scoring keeps the straight-line measure).
+* **Used live by Ask:** Nominatim place lookups and small Overpass amenity counts (see the *Bonus: Conversational analyst* section).
+* **Not connected:** Census of India ward tables, the Tamil Nadu OGD portal and Bhuvan. None exposes an open API this app can call
+  reliably, so nothing is faked; the assistant says so when asked. Population figures are the estimate table above.
 * Leaflet + react-leaflet, shapely, pyproj, FastAPI, SQLAlchemy/GeoAlchemy2, LangGraph, Vite/React (see the
   dependency files). Map tiles © OpenStreetMap contributors.
 * `osm-mcp-server` was evaluated but not used in the scoring path (Overpass is called directly); scoring must not
@@ -141,7 +248,7 @@ app runs on the template path, and the LLM path is covered by unit tests using a
 * **Remote database latency:** the managed DB adds ~0.3 s per query, so the pool is pre-warmed and list/detail
   queries use eager loading.
 
-## Known issues / what I'd do with more time
+## M1 known issues / what I'd do with more time
 * Demographics are estimates; a real ward-level Census join (and real growth rates) is the biggest quality gap.
 * Pincode polygons are Voronoi approximations, not surveyed boundaries.
 * Scoring caps are assumptions; they should be calibrated against the performance of existing Savomart stores.
@@ -152,9 +259,27 @@ app runs on the template path, and the LLM path is covered by unit tests using a
   a large area can take a minute.
 * The `datetime`-based startup hook uses FastAPI's deprecated `on_event`; switch to lifespan.
 
+## Known issues and limitations (whole product)
+* **Estimated inputs:** population, households and growth come from a bundled estimate table (Census-2011 order of magnitude), never
+  official or current Census data. Scoring caps and weights (M1, M2, M3, Opportunity Finder) are documented assumptions to
+  calibrate against real store performance.
+* **Pincode boundaries are approximate** (Voronoi polygons built from Nominatim centroids, not the OGD file). Note that the Ask
+  assistant's source chip for pincode data still reads "OGD India pincode boundaries", which overstates what the bundled file is.
+* **No authentication:** six seeded personas and an `X-Persona` header, as the brief allows. No offline capture.
+* **Free tiers:** the LLM's free quota is per model per day (a fallback list stretches it; the chat says when it is busy) and Render
+  sleeps when idle (about a minute for the first request).
+* **Overpass is uneven:** a request can fail or be slow. M1 retries, then falls back to a cache and finally to a clearly labelled
+  mock; the Opportunity Finder falls back to a stale cache and otherwise leaves the tile unranked instead of inventing values
+  (re-run to retry); Ask answers "Insufficient data" for that part.
+* **Stores:** without `SAVOMART_CRON_TOKEN` the store list is a labelled sample snapshot, which changes distance-based scores.
+* **Tests:** integration tests use the real remote database (minutes), and one older M3 test fails once real survey data exists (see
+  *Tests* above).
+* Each milestone section ends with its own list of trade-offs.
+
 ## AI tools used
 Built with **Claude Code (Claude Sonnet 5.5)** for planning, implementation, tests and UI verification with
-headless-browser screenshots at phone and desktop widths. Chat exports go in `/ai-sessions` (see the note there).
+headless-browser screenshots at phone and desktop widths. This is separate from the LLM inside the app (see *Where AI is used*),
+which runs on whatever provider the environment configures. Chat exports go in `/ai-sessions` (see the note there).
 
 ## Demo video
 _Add the Google Drive link here (3-5 minutes, "Anyone with the link can view")._
@@ -166,7 +291,8 @@ _Add the Google Drive link here (3-5 minutes, "Anyone with the link can view")._
 
 Flow: **BD Manager** assigns an M1 hotspot to a **BD Executive** -> the executive captures a property on a phone
 (GPS pin, details, photos) -> the system runs a **deterministic, versioned evaluation** -> the manager sees a
-30-second review screen and either **rejects** the property or **requests a catchment study** (M3).
+30-second review screen and either sends it back for changes or **requests a catchment study** (M3). Rejection is only
+possible at final review, after the ground survey.
 
 Roles (switcher, top right): Asha (BD Manager), Ravi and Divya (BD Executives). An `X-Persona` header carries the
 choice; the API enforces who may do what (state machine + role checks). This is seeded-persona access control, not
@@ -178,8 +304,8 @@ real authentication.
    Location (**Use current location**, drag the pin, or tap the map) -> Rent -> Building -> Access & parking ->
    Competitors seen -> Photos (camera) -> Review & submit. Missing required fields and photos are listed with the
    exact reason; a nearby existing property triggers a duplicate warning.
-3. After submit the evaluation runs in the background. Switch back to **Asha**: *Properties* -> open it. Reject with
-   a reason, or **Request catchment study**. Every change is in the pipeline history.
+3. After submit the evaluation runs in the background. Switch back to **Asha**: *Properties* -> open it. Send it
+   back with a reason, or **Request catchment study** (one click). Every change is in the pipeline history.
 
 **Geolocation needs HTTPS or localhost.** On a phone over the plain LAN URL the browser blocks it (the UI says so and
 falls back to tapping the map). For phone demos use an HTTPS tunnel or an HTTPS dev server. On a laptop the location
@@ -245,15 +371,16 @@ M1 area fitness 10. **All weights, caps and bands are documented assumptions, no
 * **Risks** are rule-generated and the **recommendation** is a deterministic band on score and confidence, with
   high-severity risks (e.g. cannibalisation, heavy organised competition) preventing an automatic "proceed".
 * **Re-evaluation:** automatic on submit and via *Re-evaluate*; each run adds a new version (v1 stays available), and
-  M3 will add a version when a catchment study completes.
+  entering final review after a completed catchment study adds one more (trigger `catchment_completed`).
 * **LLM (explanation only):** same grounded pattern as M1 (facts in, JSON out, every number checked against the
-  facts, one retry, then a fixed template). No LLM key is configured here, so the template is used.
+  facts, one retry, then a fixed template). With no LLM key the template is used; the score never depends on it.
 
 ## Validation and duplicates
 * Drafts accept partial data; **submit** requires location, address, locality, pincode, rent, areas, frontage,
   floors, type, access/parking answers and the required photos (front, road, interior). Errors are per field.
   Implausible values (negative area, ground floor larger than total, sales + storage larger than total, pin outside
-  Chennai) are rejected at any save; unusual values (rent per sq ft, weak GPS, far from the hotspot) are warnings.
+  Chennai) are rejected at any save; unusual values (rent per sq ft, weak GPS) are warnings. The typed address and the map pin are not compared with each other:
+  the pin is the location every calculation uses, and the address is a label that is pre-filled from the pin.
 * **Duplicates:** the same building is detected by `ST_DWithin` within 20 m and by identical normalised address +
   pincode. It warns ("Possible duplicate property found 12 m away."); it never merges, upserts or overwrites, and the
   manager sees the flag. Two executives submitting the same building create two rows for a human to reconcile.
@@ -269,10 +396,10 @@ folder. Check the connection with `python scripts/check_r2.py` (it never prints 
 * Personas are seeded, not authenticated. Anyone who can call the API can set `X-Persona`.
 * Demographics are estimates and OSM competitor/brand detection is heuristic (the brand list is configurable).
 * Weights and bands are assumptions to calibrate against real store performance.
-* The catchment request is recorded as a stage plus reason; M3 attaches the actual study.
+* Requesting a catchment study records a stage change and creates the M3 study (see Milestone 3).
 * Evaluation runs as a FastAPI background task (fine for one node; a queue would be next).
 * The managed database is remote (about 0.3 s per query), so the integration tests take minutes.
-* Not built: offline capture with sync, PDF decision pack, reverse-geocode caching.
+* Not built: offline capture with sync, reverse-geocode caching. (The leadership PDF was added later; see *Bonus: Decision Pack*.)
 
 
 ---
@@ -409,7 +536,7 @@ It is **read-only**: it never starts an analysis, an evaluation or a study.
 
 | Source | Used for | Notes |
 |---|---|---|
-| OGD India pincode boundaries | Chennai Corporation zones, suburb areas, pincodes | bundled file, no network |
+| Chennai pincode areas (`data/chennai_pincodes.geojson`) | Chennai Corporation zones, suburb areas, pincodes | bundled file, no network; the boundaries are the approximate set described under *Data sources*, not the official OGD file |
 | Nominatim (OpenStreetMap) | where a place is; whether it is inside an analysed area | live, Chennai-bounded, 1 request/s policy |
 | Overpass (OpenStreetMap) | counts of supermarkets, schools, hospitals, clinics, banks, bus stops within 300-2000 m | small count query, cached 6 h; counts are a minimum because OSM can be incomplete |
 | Bundled locality table | population density, households, growth | **an ESTIMATE, always labelled "not Census"** |
@@ -493,6 +620,28 @@ fail on a busy Overpass (re-run to retry); the local Savomart store list is a sa
 
 ---
 
+# Bonus: Decision Pack (BD Manager)
+
+Once a property is **APPROVED**, the BD Manager sees **Generate Decision Pack** in the property's *Final decision* card. It builds a
+branded A4 PDF of the whole case, ready to send to leadership and readable without the app, and offers **View PDF**, **Download PDF**
+and (on phones that support sharing files) **Share**. The endpoint is `GET /api/properties/{id}/decision-pack` (BD Manager only, `409`
+unless the property is approved). It is read-only and changes no approval logic.
+
+**Contents:** 1 property overview (address, type, areas, rent, photos, a schematic location map with the nearest Savomart stores),
+2 area intelligence (M1 score, key metrics, estimated demographics, amenities, competition, stores, hotspots), 3 property evaluation
+(M2 score, factor breakdown, rent, accessibility, frontage, parking, competition, risks, insights), 4 ground catchment survey (status,
+coverage, residential, commercial, competition, footfall, accessibility, demand generators, findings, risks, evidence photos),
+5 final decision (approver, date, notes, evaluation used, decision trail) and 6 data sources with dates. Every page carries the
+generation date.
+
+**How it works** (`services/decision_pack.py`): nothing is stored and no table was added. The PDF is assembled on request from the
+existing property detail, the M1 area report, the survey insights and the stored photos (`storage.read`), and laid out with
+**reportlab** (Pillow shrinks photos to about 800 px). Missing optional data reads "Not available" instead of being invented, and
+estimates stay labelled as estimates. The location map is a vector schematic, not a street map (it needs no map tiles, so it cannot
+fail). Generation takes about 8 seconds, mostly reading photos.
+
+---
+
 # Deploying (Vercel frontend + Render backend)
 
 The frontend is static, so it goes on **Vercel**. The backend must run on an always-on server, because analyses and
@@ -509,7 +658,8 @@ and wait a minute before a demo).
    `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, health check `/api/health`.
 2. Enter these environment variables in the Render dashboard (never in a file): `db_url`, `R2_ACCOUNT_ID`,
    `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `SAVOMART_CRON_TOKEN`, and optionally `LLM_PROVIDER` /
-   `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_FALLBACK_MODELS` (needed for the conversational analyst).
+   `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_FALLBACK_MODELS` (needed for Ask; without a key everything else still
+   works) and the Opportunity Finder's `OPP_*` / `OPPORTUNITY_*` / `OSRM_URL` tuning names from `.env.example`.
 3. Let Render reach the database (allowed-IP settings on your database provider).
 4. Open `https://<service>.onrender.com/api/health`: it should say `"database": true`.
 
@@ -527,6 +677,8 @@ trailing slash) and redeploy the backend. Use the production address, not a per-
 ## Notes
 * **Free tier:** Render's free web service sleeps when idle, so the first request after a pause can take about a minute.
   Open the site once before a demo.
+* **Opportunity Finder:** run `python scripts/warm_opportunity_cache.py` once from `backend/` before a demo. The tile cache lives in
+  the shared database, so the deployed app then answers a search in about a minute instead of reading about 40 map tiles live.
 * **HTTPS:** Vercel serves HTTPS, which browsers require for "Use current location" on a phone.
 * In development nothing changes: leave `VITE_API_BASE` empty and the Vite dev server proxies `/api` to the backend.
 * Deployment settings contain only variable **names** (`render.yaml`, `frontend/.env.example`); no secret is stored in the repo.

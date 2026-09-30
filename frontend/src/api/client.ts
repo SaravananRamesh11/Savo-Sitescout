@@ -72,6 +72,27 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>
 }
 
+/** Like req(), but for a binary reply (the Decision Pack PDF). A plain link cannot carry the X-Persona header, so it is fetched. */
+async function blobReq(path: string): Promise<Blob> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}/api${path}`, { headers: { 'X-Persona': personaId } })
+  } catch {
+    throw new ApiError('Cannot reach the server. Check your connection and try again.')
+  }
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`
+    try {
+      const body = await res.json()
+      if (typeof body.detail === 'string') msg = body.detail
+    } catch {
+      /* keep default */
+    }
+    throw new ApiError(msg, res.status)
+  }
+  return res.blob()
+}
+
 const json = (method: string, body?: unknown): RequestInit => ({ method, body: body === undefined ? undefined : JSON.stringify(body) })
 
 export const api = {
@@ -149,6 +170,7 @@ export const api = {
   },
   deleteCapturePhoto: (id: number, pid: number) => req(`/survey/captures/${id}/photos/${pid}`, json('DELETE')),
   analystChat: (question: string, history: ChatTurn[]) => req<ChatResponse>('/analyst/chat', json('POST', { question, history })),
+  decisionPack: (id: number) => blobReq(`/properties/${id}/decision-pack`),
   // Opportunity Finder
   oppLatest: () => req<{ active: OppStatus | null; run: OppRun | null }>('/opportunities/runs/latest'),
   oppStart: () => req<{ run_id: number; status: string; already_running: boolean }>('/opportunities/runs', json('POST')),
